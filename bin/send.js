@@ -15,6 +15,6 @@ if (!from || !to || !subject || !text) {
   process.exit(1);
 }
 
-const token = await getAccessToken();
-await sendEmail(token, { from, to, subject, text });
+//const token = await getAccessToken();
+await sendEmail({ from, to, subject, text });
 
