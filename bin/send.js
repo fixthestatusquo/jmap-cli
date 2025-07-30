@@ -3,7 +3,7 @@
 import minimist from 'minimist';
 import dotenv from 'dotenv';
 import { getAccessToken } from '../lib/auth.js';
-import { sendEmail } from '../lib/jmap.js';
+import { JmapClient } from '../lib/jmap.js';
 
 dotenv.config();
 
@@ -16,5 +16,7 @@ if (!from || !to || !subject || !text) {
 }
 
 //const token = await getAccessToken();
-await sendEmail({ from, to, subject, text });
+const jmapClient = new JmapClient();
+console.log("text", text);
+await jmapClient.sendEmail({ from, to, subject, text });
 
