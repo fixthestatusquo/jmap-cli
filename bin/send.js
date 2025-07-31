@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-
 import minimist from 'minimist';
-import dotenv from 'dotenv';
 import { JmapClient } from '../lib/jmap.js';
-
-dotenv.config();
+import '../lib/config.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const help = `
-Usage: send-email [options]
+Usage: jmap send-email [options]
 
 Options:
   --from <email>       Sender's email address (defaults to EMAIL_FROM env var)
@@ -20,7 +19,7 @@ Options:
 const minimistOptions = {
   string: ['from', 'from-name', 'to', 'subject', 'text'],
   boolean: ['help'],
-  alias: { h: 'help' },
+  alias: { h: 'help', s: 'subject' },
   unknown: (arg) => {
     console.error(`Unknown argument: ${arg}`);
     console.log(help);
@@ -28,18 +27,17 @@ const minimistOptions = {
   },
 };
 
-const args = minimist(process.argv.slice(2), minimistOptions);
+export async function main(argv) {
+  const args = minimist(argv, minimistOptions);
 
-const { from = process.env.EMAIL_FROM, 'from-name': fromName, to, subject } = args;
-let { text } = args;
+  const { from = process.env.MAIL_FROM, 'from-name': fromName, to, subject } = args;
+  let { text } = args;
 
+  if (args.help || !from || !to || !subject) {
+    console.log(help);
+    process.exit(0);
+  }
 
-if (args.help || !from || !to || !subject) {
-  console.log(help);
-  process.exit(0);
-}
-
-async function main() {
   if (!text) {
     if (process.stdin.isTTY) {
       console.log('Type your message followed by ctrl-d');
@@ -52,8 +50,11 @@ async function main() {
   }
 
   const jmapClient = new JmapClient();
-  await jmapClient.sendEmail({ from, fromName, to, subject, text });
+  const result = await jmapClient.sendEmail({ from, fromName, to, subject, text });
+  console.log(JSON.stringify(result, null, 2));
 }
 
-main();
+if (import.meta.url.startsWith('file:') && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main(process.argv.slice(2));
+}
 

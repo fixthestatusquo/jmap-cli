@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-
 import minimist from 'minimist';
-import dotenv from 'dotenv';
 import { JmapClient } from '../lib/jmap.js';
-
-dotenv.config();
+import '../lib/config.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const minimistOptions = {
   string: ['limit'],
@@ -19,10 +18,11 @@ const minimistOptions = {
   },
 };
 
-const args = minimist(process.argv.slice(2), minimistOptions);
+export async function main(argv) {
+  const args = minimist(argv, minimistOptions);
 
-const help = `
-Usage: messages [mailbox] [options]
+  const help = `
+Usage: jmap messages [mailbox] [options]
 
 Arguments:
   mailbox                Mailbox to list messages from (defaults to "Inbox")
@@ -33,17 +33,65 @@ Options:
   -h, --help             Show this help message
 `;
 
-if (args.help) {
-  console.log(help);
-  process.exit(0);
-}
+  if (args.help) {
+    console.log(help);
+    process.exit(0);
+  }
 
-async function main() {
   const limit = args.limit ? parseInt(args.limit, 10) : 10;
   const mailboxName = args._[0] || "Inbox";
   const jsonOutput = args.json;
   const jmapClient = new JmapClient();
-  await jmapClient.listMessages({ limit, mailboxName, jsonOutput });
+  const messages = await jmapClient.listMessages({ limit, mailboxName });
+
+  if (jsonOutput) {
+    const cleanedMessages = messages.map(message => {
+      const cleanedMessage = {};
+      for (const key in message) {
+        const value = message[key];
+        if (value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)) {
+          if (key.startsWith('header:')) {
+            // Handle specific headers for JSON output
+            if (key === 'header:X-Priority:asText') cleanedMessage['X-Priority'] = value;
+            else if (key === 'header:Importance:asText') cleanedMessage['Importance'] = value;
+            else if (key === 'header:Priority:asText') cleanedMessage['Priority'] = value;
+            else if (key === 'header:Auto-Submitted:asText') cleanedMessage['Auto-Submitted'] = value;
+          } else {
+            cleanedMessage[key] = value;
+          }
+        }
+      }
+      return cleanedMessage;
+    });
+    console.log(JSON.stringify(cleanedMessages, null, 2));
+  } else {
+    messages.forEach(message => {
+      const display = (label, value) => {
+        if (value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)) {
+          console.log(`${label}: ${value}`);
+        }
+      };
+
+      display('ID', message.id);
+      display('Subject', message.subject);
+      display('From', message.from ? message.from.map(f => f.name ? `${f.name} <${f.email}>` : f.email).join(', ') : null);
+      display('To', message.to ? message.to.map(t => t.name ? `${t.name} <${t.email}>` : t.email).join(', ') : null);
+      display('Cc', message.cc ? message.cc.map(c => c.name ? `${c.name} <${c.email}>` : c.email).join(', ') : null);
+      display('Bcc', message.bcc ? message.bcc.map(b => b.name ? `${b.name} <${b.email}>` : b.email).join(', ') : null);
+      display('Received', message.receivedAt);
+      display('Size', message.size);
+      if (message.hasAttachment) display('Has Attachment', message.hasAttachment);
+      if (Object.keys(message.keywords).length > 0) display('Keywords', JSON.stringify(message.keywords));
+      display('Preview', message.preview);
+      display('X-Priority', message['header:X-Priority:asText']);
+      display('Importance', message['header:Importance:asText']);
+      display('Priority', message['header:Priority:asText']);
+      display('Auto-Submitted', message['header:Auto-Submitted:asText']);
+      console.log('---');
+    });
+  }
 }
 
-main();
+if (import.meta.url.startsWith('file:') && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main(process.argv.slice(2));
+}

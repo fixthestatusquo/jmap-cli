@@ -1,14 +1,33 @@
 {
   "name": "jmap-cli",
   "version": "1.0.0",
+  "description": "A command-line interface for JMAP servers.",
   "type": "module",
-  "bin": {
-    "send": "./bin/send.js"
+  "bin": "./bin/jmap.js",
+  "files": [
+    "bin",
+    "lib", 
+    "README.md"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "init": "./bin/init.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fixthestatusquo/jmap-cli.git"
+  },
+  "keywords": [
+    "jmap",
+    "cli",
+    "email"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
   "dependencies": {
     "dotenv": "^16.3.1",
     "minimist": "^1.2.8",
-    "openid-client": "^5.6.2"
+    "ws": "^8.17.0"
   }
 }
 
