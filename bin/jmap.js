@@ -18,27 +18,35 @@ Commands:
   help                   Show this help message
 `;
 
-switch (command) {
-    case 'init':
-        (await import('./init.js')).main(args.slice(1));
+(async () => {
+  try {
+    let cmd = undefined;
+    switch (command) {
+      case 'init':
+        await (await import('./init.js')).main(args.slice(1));
         break;
-    case 'mailboxes':
-        (await import('./mailboxes.js')).main(args.slice(1));
+      case 'mailboxes':
+        await (await import('./mailboxes.js')).main(args.slice(1));
         break;
-    case 'messages':
-        (await import('./messages.js')).main(args.slice(1));
+      case 'messages':
+        await (await import('./messages.js')).main(args.slice(1));
         break;
-    case 'message':
-        (await import('./message.js')).main(args.slice(1));
+      case 'message':
+        await (await import('./message.js')).main(args.slice(1));
         break;
-    case 'send':
-        (await import('./send.js')).main(args.slice(1));
+      case 'send':
+        await (await import('./send.js')).main(args.slice(1));
         break;
-    case 'listen':
-        (await import('./listen.js')).main(args.slice(1));
+      case 'listen':
+        await (await import('./listen.js')).main(args.slice(1));
         break;
-    case 'help':
-    default:
+      case 'help':
+      default:
         console.log(help);
         break;
-}
+    }
+  } catch (e) {
+    console.error(e.toString());
+    process.exit(1);
+  }
+})();

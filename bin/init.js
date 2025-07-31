@@ -5,12 +5,13 @@ import { JmapClient } from '../lib/jmap.js';
 import fs from 'fs/promises';
 import readline from 'readline';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import "../lib/config.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const envFilePath = path.resolve(__dirname, '..', '.env');
+const homeDir = os.homedir();
+const configDir = path.join(homeDir, '.config', 'jmap-cli');
+const configFilePath = path.join(configDir, 'config');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -52,26 +53,26 @@ Options:
     process.exit(0);
   }
 
-  // Check if .env exists
+  // Check if config file exists
   try {
-    await fs.access(envFilePath);
+    await fs.access(configFilePath);
     const client = new JmapClient();
     const isValid = await client.verifyCredentials();
     let answer;
     if (isValid) {
-      answer = await question('An existing .env file was found with a valid configuration. Overwrite? (y/N): ');
+      answer = await question(`An existing config file was found at ${configFilePath} with a valid configuration. Overwrite? (y/N): `);
     } else {
-      answer = await question('An existing .env file was found, but the configuration seems invalid. Overwrite? (y/N): ');
+      answer = await question(`An existing config file was found at ${configFilePath}, but the configuration seems invalid. Overwrite? (y/N): `);
     }
     if (answer.toLowerCase() !== 'y') {
-      console.log('\nOperation cancelled. .env file not modified.');
+      console.log(`\nOperation cancelled. Config file not modified.`);
       rl.close();
       return;
     }
   } catch (error) {
     // If the file doesn't exist, do nothing.
     if (error.code !== 'ENOENT') {
-      console.error('Error checking for .env file:', error.message);
+      console.error(`Error checking for config file at ${configFilePath}:`, error.message);
       rl.close();
       return;
     }
@@ -97,8 +98,14 @@ Options:
   }
 
   const envContent = `JMAP_BASE_URL="${jmapBaseUrl}"\nJMAP_USERNAME="${jmapUsername}"\nJMAP_PASSWORD="${jmapPassword}"\nMAIL_FROM="${mailFrom}"\n`;
-  await fs.writeFile(envFilePath, envContent);
-  console.log('\n.env file generated successfully!');
+  
+  try {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(configFilePath, envContent);
+    console.log(`\nConfig file generated successfully at ${configFilePath}!`);
+  } catch (error) {
+    console.error(`\nError writing config file at ${configFilePath}:`, error.message);
+  }
 
   rl.close();
 }

@@ -6,6 +6,14 @@ A command-line interface for interacting with a JMAP server.
 
 For detailed installation and configuration instructions, please see [INSTALL.md](INSTALL.md).
 
+## Configuration
+
+Configuration is stored in `~/.config/jmap-cli/config`. To create or update the configuration, run:
+
+```bash
+jmap-cli init
+```
+
 ## Usage
 
 ```bash

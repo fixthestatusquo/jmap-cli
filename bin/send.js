@@ -51,7 +51,15 @@ export async function main(argv) {
 
   const jmapClient = new JmapClient();
   const result = await jmapClient.sendEmail({ from, fromName, to, subject, text });
-  console.log(JSON.stringify(result, null, 2));
+  const emailSet = result.methodResponses.find(r => r[0] === 'Email/set');
+  if (emailSet && emailSet[1].created) {
+    for (const key in emailSet[1].created) {
+      const id = emailSet[1].created[key].id;
+      console.log(`message ${id} created`);
+    }
+  } else {
+    console.log(JSON.stringify(result, null, 2));
+  }
 }
 
 if (import.meta.url.startsWith('file:') && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

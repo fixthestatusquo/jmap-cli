@@ -32,4 +32,4 @@ jmap-cli init
 ```
 
 This will ask for your JMAP server URL, your username, and the app password you generated in Stalwart. 
-Once done, it will save it into a .env file and that will be used transparently for all the future commands
+Once done, it will save it into a config file at `~/.config/jmap-cli/config` and that will be used transparently for all the future commands
