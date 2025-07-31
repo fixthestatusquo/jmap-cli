@@ -7,23 +7,29 @@ import { JmapClient } from '../lib/jmap.js';
 dotenv.config();
 
 const minimistOptions = {
-  string: ['limit', 'mailbox'],
-  boolean: ['help'],
-  alias: { h: 'help', l: 'limit', m: 'mailbox' },
+  string: ['limit'],
+  boolean: ['help', 'json'],
+  alias: { h: 'help', l: 'limit', j: 'json' },
   unknown: (arg) => {
-    console.error(`Unknown argument: ${arg}`);
-    process.exit(1);
+    if (arg.startsWith('-')) {
+      console.error(`Unknown argument: ${arg}`);
+      process.exit(1);
+    }
+    return true;
   },
 };
 
 const args = minimist(process.argv.slice(2), minimistOptions);
 
 const help = `
-Usage: list [options]
+Usage: messages [mailbox] [options]
+
+Arguments:
+  mailbox                Mailbox to list messages from (defaults to "Inbox")
 
 Options:
   -l, --limit <number>   Number of messages to list (defaults to 10)
-  -m, --mailbox <name>   Mailbox to list messages from (defaults to "Inbox")
+  -j, --json             Output messages as JSON
   -h, --help             Show this help message
 `;
 
@@ -34,9 +40,10 @@ if (args.help) {
 
 async function main() {
   const limit = args.limit ? parseInt(args.limit, 10) : 10;
-  const mailboxName = args.mailbox || "Inbox";
+  const mailboxName = args._[0] || "Inbox";
+  const jsonOutput = args.json;
   const jmapClient = new JmapClient();
-  await jmapClient.listMessages({ limit, mailboxName });
+  await jmapClient.listMessages({ limit, mailboxName, jsonOutput });
 }
 
 main();
