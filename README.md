@@ -83,14 +83,18 @@ Sends an email.
 **Usage:**
 
 ```bash
-jmap-cli send [options]
+jmap-cli send <to> [options]
 ```
+
+**Arguments:**
+
+*   `to`: Recipient's email address
 
 **Options:**
 
 *   `--from <email>`: Sender's email address (defaults to EMAIL_FROM env var)
-*   `--from-name <name>`: Sender's name
-*   `--to <email>`: Recipient's email address
+*   `--from-name <name>`: Sender's name (defaults to MAIL_FROM_NAME env var)
 *   `--subject <subject>`: Email subject
 *   `--text <text>`: Email body (reads from stdin if not provided)
+*   `--attach <file>`: Attach a file to the email.
 *   `-h, --help`: Show this help message

@@ -18,8 +18,11 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-function question(query) {
-  return new Promise((resolve) => rl.question(query, resolve));
+function question(query, currentValue) {
+  const prompt = currentValue ? `${query} [${currentValue}] ` : `${query} `;
+  return new Promise((resolve) => rl.question(prompt, (answer) => {
+    resolve(answer || currentValue);
+  }));
 }
 
 const minimistOptions = {
@@ -53,40 +56,34 @@ Options:
     process.exit(0);
   }
 
-  // Check if config file exists
+  let existingConfig = {};
   try {
-    await fs.access(configFilePath);
-    const client = new JmapClient();
-    const isValid = await client.verifyCredentials();
-    let answer;
-    if (isValid) {
-      answer = await question(`An existing config file was found at ${configFilePath} with a valid configuration. Overwrite? (y/N): `);
-    } else {
-      answer = await question(`An existing config file was found at ${configFilePath}, but the configuration seems invalid. Overwrite? (y/N): `);
-    }
-    if (answer.toLowerCase() !== 'y') {
-      console.log(`\nOperation cancelled. Config file not modified.`);
-      rl.close();
-      return;
-    }
+    const configContent = await fs.readFile(configFilePath, 'utf-8');
+    configContent.split('\n').forEach(line => {
+      const [key, value] = line.split('=');
+      if (key && value) {
+        existingConfig[key] = value.replace(/"/g, '');
+      }
+    });
   } catch (error) {
     // If the file doesn't exist, do nothing.
     if (error.code !== 'ENOENT') {
-      console.error(`Error checking for config file at ${configFilePath}:`, error.message);
+      console.error(`Error reading config file at ${configFilePath}:`, error.message);
       rl.close();
       return;
     }
   }
 
-  let jmapBaseUrl = args._[0] || args.url;
+  let jmapBaseUrl = args._[0] || args.url || existingConfig.JMAP_BASE_URL;
 
   if (!jmapBaseUrl) {
-    jmapBaseUrl = await question('Enter the JMAP base URL (e.g., https://jmap.example.com): ');
+    jmapBaseUrl = await question('Enter the JMAP base URL (e.g., https://jmap.example.com):');
   }
 
-  const jmapUsername = await question('Enter your email address (login): ');
-  const jmapPassword = await question('Enter your JMAP password: ');
-  const mailFrom = await question(`Enter the MAIL_FROM address (press Enter to use ${jmapUsername}): `) || jmapUsername;
+  const jmapUsername = await question('Enter your email address (login):', existingConfig.JMAP_USERNAME);
+  const jmapPassword = await question('Enter your JMAP password:', existingConfig.JMAP_PASSWORD);
+  const mailFrom = await question(`Enter the MAIL_FROM address:`, existingConfig.MAIL_FROM || jmapUsername) || jmapUsername;
+  const mailFromName = await question('Enter your sender name:', existingConfig.MAIL_FROM_NAME);
 
   const client = new JmapClient(jmapUsername, jmapPassword, jmapBaseUrl);
   const isValid = await client.verifyCredentials();
@@ -97,8 +94,15 @@ Options:
     return;
   }
 
-  const envContent = `JMAP_BASE_URL="${jmapBaseUrl}"\nJMAP_USERNAME="${jmapUsername}"\nJMAP_PASSWORD="${jmapPassword}"\nMAIL_FROM="${mailFrom}"\n`;
-  
+  const session = await client._discoverSession();
+  const accountId = client.getAccountId(session);
+  const { outboxId, identityId, identityEmail } = await client.getSendPrerequisites(accountId);
+
+  const envContent = `JMAP_BASE_URL="${jmapBaseUrl}"\nJMAP_USERNAME="${jmapUsername}"\nJMAP_PASSWORD="${jmapPassword}"\nMAIL_FROM="${mailFrom}"\nJMAP_SENT_MAILBOX_ID="${outboxId}"\nJMAP_IDENTITY_ID="${identityId}"\nJMAP_IDENTITY_EMAIL="${identityEmail}"
+MAIL_FROM_NAME="${mailFromName}"
+
+`;
+
   try {
     await fs.mkdir(configDir, { recursive: true });
     await fs.writeFile(configFilePath, envContent);
