@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const minimistOptions = {
-  string: ['limit'],
+  string: ['limit', 'sort', 'order'],
   boolean: ['help', 'json'],
   alias: { h: 'help', l: 'limit', j: 'json' },
   unknown: (arg) => {
@@ -29,6 +29,8 @@ Arguments:
 
 Options:
   -l, --limit <number>   Number of messages to list (defaults to 10)
+  --sort <string>        Sort by property (e.g., receivedAt, from, to, subject, size)
+  --order <string>       Sort order (asc or desc, defaults to desc)
   -j, --json             Output messages as JSON
   -h, --help             Show this help message
 `;
@@ -41,8 +43,10 @@ Options:
   const limit = args.limit ? parseInt(args.limit, 10) : 10;
   const mailboxName = args._[0] || "Inbox";
   const jsonOutput = args.json;
+  const sort = args.sort || 'receivedAt';
+  const order = args.order || 'desc';
   const jmapClient = new JmapClient();
-  const messages = await jmapClient.listMessages({ limit, mailboxName });
+  const messages = await jmapClient.listMessages({ limit, mailboxName, sort, order });
 
   if (jsonOutput) {
     const cleanedMessages = messages.map(message => {
