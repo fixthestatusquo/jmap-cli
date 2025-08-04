@@ -98,3 +98,27 @@ jmap-cli send <to> [options]
 *   `--text <text>`: Email body (reads from stdin if not provided)
 *   `--attach <file>`: Attach a file to the email.
 *   `-h, --help`: Show this help message
+
+#### `search`
+
+Searches for messages with various criteria.
+
+**Usage:**
+
+```bash
+jmap-cli search [options] [freeform_query]
+```
+
+**Options:**
+
+*   `--from <string>`: Search by sender email address or name
+*   `--to <string>`: Search by recipient email address or name
+*   `--subject <string>`: Search by subject
+*   `--body <string>`: Search by body content
+*   `--before <date>`: Search for messages received before a specific date (YYYY-MM-DD)
+*   `--after <date>`: Search for messages received after a specific date (YYYY-MM-DD)
+*   `-l, --limit <number>`: Number of messages to list (defaults to 10)
+*   `--sort <string>`: Sort by property (e.g., receivedAt, from, to, subject, size)
+*   `--order <string>`: Sort order (asc or desc, defaults to desc)
+*   `-j, --json`: Output messages as JSON
+*   `-h, --help`: Show this help message

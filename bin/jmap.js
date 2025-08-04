@@ -14,6 +14,7 @@ const commands = {
   listen: { file: './listen.js', description: 'WIP Listen for real-time updates' },
   keyword: { file: './keyword.js', description: 'Set keywords (seen, answered...) on a message' },
   move: { file: './move.js', description: 'Move a message to a different mailbox' },
+  search: { file: './search.js', description: 'Search for messages with various criteria' },
   help: { file: null, description: 'Show this help message' }
 };
 
