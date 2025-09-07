@@ -4,7 +4,7 @@ import { JmapClient } from '../lib/jmap.js';
 import '../lib/config.js';
 
 const minimistOptions = {
-  boolean: ['help', 'draft', 'seen', 'flagged', 'answered'],
+  boolean: ['help', 'read', 'answered', 'starred', 'junk', 'draft'],
   string: ['set'],
   alias: { h: 'help' },
   unknown: (arg) => {
@@ -26,10 +26,11 @@ Arguments:
   message-id             The ID of the message to update
 
 Options:
-  --draft                Set the $draft keyword
-  --seen                 Set the $seen keyword
-  --flagged              Set the $flagged keyword
-  --answered             Set the $answered keyword
+  --read[=true|false]    Set/unset the $seen keyword
+  --answered[=true|false]  Set/unset the $answered keyword
+  --starred[=true|false]   Set/unset the $flagged keyword
+  --junk[=true|false]      Set/unset the $junk keyword
+  --draft[=true|false]     Set/unset the $draft keyword
   --set <keyword>        Set a custom keyword
   -h, --help             Show this help message
 `;
@@ -44,10 +45,11 @@ Options:
   const jmapClient = new JmapClient();
   const keywords = {};
 
-  if (args.draft) keywords['$draft'] = true;
-  if (args.seen) keywords['$seen'] = true;
-  if (args.flagged) keywords['$flagged'] = true;
-  if (args.answered) keywords['$answered'] = true;
+  if (args.read !== undefined) keywords['$seen'] = args.read;
+  if (args.answered !== undefined) keywords['$answered'] = args.answered;
+  if (args.starred !== undefined) keywords['$flagged'] = args.starred;
+  if (args.junk !== undefined) keywords['$junk'] = args.junk;
+  if (args.draft !== undefined) keywords['$draft'] = args.draft;
   if (args.set) keywords[args.set] = true;
 
   const update = { keywords };

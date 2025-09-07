@@ -8,6 +8,7 @@ const command = args[0];
 const commands = {
   init: { file: './init.js', description: 'Initializes the CLI and creates a .env file' },
   mailboxes: { file: './mailboxes.js', description: 'Lists the mailboxes in your account' },
+  mailbox: { file: './mailbox.js', description: 'Creates a new mailbox' },
   messages: { file: './messages.js', description: 'Lists the messages in a mailbox' },
   message: { file: './message.js', description: 'Fetches a message' },
   send: { file: './send.js', description: 'Sends an email' },

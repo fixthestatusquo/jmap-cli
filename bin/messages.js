@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 const minimistOptions = {
   string: ['limit', 'sort', 'order'],
-  boolean: ['help', 'json'],
+  boolean: ['help', 'json', 'read', 'answered', 'starred', 'junk', 'draft'],
   alias: { h: 'help', l: 'limit', j: 'json' },
   unknown: (arg) => {
     if (arg.startsWith('-')) {
@@ -19,8 +19,10 @@ const minimistOptions = {
   },
 };
 
+
 export async function main(argv) {
   const args = minimist(argv, minimistOptions);
+  const isSet = (flagName) => (args.flagName || args._.includes(`--no-${flagName}`) );
 
   const help = `
 Usage: jmap messages [mailbox] [options]
@@ -32,6 +34,11 @@ Options:
   -l, --limit <number>   Number of messages to list (defaults to 10)
   --sort <string>        Sort by property (e.g., receivedAt, from, to, subject, size)
   --order <string>       Sort order (asc or desc, defaults to desc)
+  --read[=true|false]    Filter by messages that are read/unread
+  --answered[=true|false]  Filter by messages that are answered/unanswered
+  --starred[=true|false]   Filter by messages that are starred/unstarred
+  --junk[=true|false]      Filter by messages that are junk/not junk
+  --draft[=true|false]     Filter by messages that are draft/not draft
   -j, --json             Output messages as JSON
   -h, --help             Show this help message
 `;
@@ -46,8 +53,18 @@ Options:
   const jsonOutput = args.json;
   const sort = args.sort || 'receivedAt';
   const order = args.order || 'desc';
+
+  const keywords = {};
+  if (isSet('read')) keywords['$seen'] = args.read;
+  if (isSet('answered')) keywords['$answered'] = args.answered;
+  if (isSet('starred')) keywords['$flagged'] = args.starred;
+  if (isSet('junk')) keywords['$junk'] = args.junk;
+  if (isSet('draft')) keywords['$draft'] = args.draft;
+
+
+
   const jmapClient = new JmapClient();
-  const messages = await jmapClient.listMessages({ limit, mailboxName, sort, order });
+  const messages = await jmapClient.listMessages({ limit, mailboxName, sort, order, ...(Object.keys(keywords).length > 0 && { keywords }) });
 
   formatAndDisplayMessages(messages, jsonOutput);
 }
