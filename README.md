@@ -92,7 +92,7 @@ jmap-cli send <to> [options]
 
 **Options:**
 
-*   `--from <email>`: Sender's email address (defaults to EMAIL_FROM env var)
+*   `--from <email>`: Sender's email address (defaults to MAIL_FROM env var)
 *   `--from-name <name>`: Sender's name (defaults to MAIL_FROM_NAME env var)
 *   `--subject <subject>`: Email subject
 *   `--text <text>`: Email body (reads from stdin if not provided)

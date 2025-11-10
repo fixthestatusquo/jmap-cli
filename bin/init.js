@@ -85,7 +85,7 @@ Options:
   const mailFrom = await question(`Enter the MAIL_FROM address:`, existingConfig.MAIL_FROM || jmapUsername) || jmapUsername;
   const mailFromName = await question('Enter your sender name:', existingConfig.MAIL_FROM_NAME);
 
-  const client = new JmapClient(jmapUsername, jmapPassword, jmapBaseUrl);
+  const client = new JmapClient({username: jmapUsername, password: jmapPassword, baseUrl:jmapBaseUrl});
   const isValid = await client.verifyCredentials();
 
   if (!isValid) {
