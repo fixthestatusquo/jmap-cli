@@ -88,13 +88,11 @@ async function bootstrapToken() {
   }
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    console.error(
-      `Authentication failed: ${res.status} "${
-        errBody.error_description || errBody.error || res.statusText
-      }" — endpoint: ${tokenEndpoint}`,
-    );
-    process.exit(1);
+    // OAuth2 failed — fall back to Basic Auth with username/password
+    const basic = Buffer.from(`${username}:${password}`).toString("base64");
+    process.env.JMAP_TOKEN = `Basic ${basic}`;
+    console.error("Using Basic Auth.");
+    return;
   }
 
   const data = await res.json();
