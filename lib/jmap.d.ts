@@ -117,41 +117,25 @@ export interface JmapIdentity {
   [key: string]: unknown;
 }
 
-// ----- OAuth2 types -----
-
-export type AuthType = "basic" | "oauth2";
-
-export interface OAuthTokenState {
-  accessToken: string | null;
-  refreshToken: string | null;
-  expiresAt: number | null;
-}
-
 // ----- Method-specific argument types -----
 
 export interface JmapClientOptions {
-  /** JMAP username / account name */
-  username?: string;
-  /** JMAP password */
-  password?: string;
   /** JMAP base URL (e.g. https://api.fastmail.com) */
   baseUrl?: string;
+  /** Pre-existing OAuth2 access token (JWT) — also JMAP_TOKEN env var */
+  token?: string;
+  /** Pre-existing OAuth2 refresh token — also JMAP_REFRESH_TOKEN env var */
+  refreshToken?: string;
+  /** JMAP username (for password grant) — also JMAP_USERNAME env var */
+  username?: string;
+  /** JMAP password (for password grant) — also JMAP_PASSWORD env var */
+  password?: string;
+  /** OAuth2 client ID (default: "jmap-client") — also JMAP_CLIENT_ID env var */
+  clientId?: string;
+  /** Explicit OAuth2 token endpoint — also JMAP_AUTH_TOKEN_ENDPOINT env var */
+  tokenEndpoint?: string;
   /** Path to a dotenv config file (loaded automatically) */
   path?: string;
-
-  // --- OAuth2 options ---
-  /** Authentication type: "basic" (default) or "oauth2" */
-  authType?: AuthType;
-  /** Pre-existing OAuth2 access token (JWT) */
-  accessToken?: string;
-  /** Pre-existing OAuth2 refresh token */
-  refreshToken?: string;
-  /** OAuth2 client ID (default: "jmap-client" for Stalwart) */
-  clientId?: string;
-  /** Explicit OAuth2 token endpoint (skips auto-discovery) */
-  tokenEndpoint?: string;
-  /** Automatically refresh tokens when expired (default: true) */
-  autoRefresh?: boolean;
 }
 
 export interface SendEmailOptions {
@@ -167,7 +151,7 @@ export interface SendEmailOptions {
   text: string;
   /** Optional attachment */
   attachment?: {
-    /** Raw content (Buffer or base64 string) */
+    /** Raw content (Buffer or string) */
     content: Buffer | string;
     /** File name */
     name: string;
@@ -256,7 +240,7 @@ export interface MoveMessageOptions {
 export interface CreateMailboxOptions {
   /** Name for the new mailbox / folder */
   name: string;
-  /** Optional parent mailbox ID for nesting */
+  /** Optional parent mailbox ID or name for nesting */
   parentId?: string;
 }
 
@@ -271,35 +255,25 @@ export class JmapClient {
   baseUrl: string;
   /** Full JMAP API URL (baseUrl + "/jmap") */
   apiUrl: string;
-  /** Authentication type: "basic" or "oauth2" */
-  authType: AuthType;
-  /** HTTP Basic auth header value (null in OAuth2 mode) */
-  authHeader: string | null;
 
   /**
    * Create a new JMAP client.
    *
-   * Options are optional; missing values are populated from environment
-   * variables or a dotenv file pointed to by the `path` option.
+   * All options fall back to environment variables:
+   *   JMAP_TOKEN, JMAP_REFRESH_TOKEN, JMAP_USERNAME, JMAP_PASSWORD,
+   *   JMAP_BASE_URL, JMAP_CLIENT_ID, JMAP_AUTH_TOKEN_ENDPOINT
    *
-   * **Basic Auth (default):** Uses JMAP_USERNAME, JMAP_PASSWORD, JMAP_BASE_URL.
-   *
-   * **OAuth2:** Set `authType: "oauth2"` and provide one of:
-   *   - `username` + `password` → password grant (auto-discovers token endpoint)
-   *   - `accessToken` → pre-existing JWT
-   *   - `refreshToken` → will be used to refresh
-   *
-   * Environment variable equivalents: JMAP_AUTH_TYPE, JMAP_ACCESS_TOKEN,
-   * JMAP_REFRESH_TOKEN, JMAP_CLIENT_ID, JMAP_AUTH_TOKEN_ENDPOINT,
-   * JMAP_AUTO_REFRESH.
+   * Token acquisition priority (handled by TokenManager):
+   *   1. Return cached access token if not expired
+   *   2. Refresh via refresh token
+   *   3. Password grant via username + password
    */
   constructor(options?: JmapClientOptions);
 
   /**
    * Internal request wrapper.
-   * - Basic Auth: adds Authorization header automatically.
-   * - OAuth2: gets a valid token (refreshing if needed), adds Bearer header.
-   *   On 401, refreshes once and retries once.
+   * Gets a valid OAuth2 Bearer token (auto-refreshing if needed),
+   * makes the request, and on 401 refreshes once and retries once.
    * @internal
    */
   _request(url: string, options?: RequestInit): Promise<Response>;
@@ -330,7 +304,7 @@ export class JmapClient {
 
   /**
    * Send an email via JMAP (Email/set + EmailSubmission/set).
-   * Optionally includes an attachment (uploaded first via session uploadUrl).
+   * Optionally includes an attachment.
    */
   sendEmail(options: SendEmailOptions): Promise<Record<string, unknown>>;
 

@@ -1,16 +1,10 @@
 // ---------------------------------------------------------------------------
-// Authentication type declarations
+// Authentication type declarations (legacy)
 // ---------------------------------------------------------------------------
 
 /**
- * Authenticate with the JMAP server using the legacy /jmap/authentication
- * endpoint with Basic-auth credentials from environment variables.
+ * @deprecated Use OAuth2 (JMAP_TOKEN env var / JmapClient constructor) instead.
  *
- * @deprecated Use OAuth2 (authType: "oauth2" in JmapClient) instead.
- *
- * Makes a POST to `${JMAP_BASE_URL}/jmap/authentication` and returns
- * a bearer access token from the response.
- *
- * The token is cached in-memory after the first successful call.
+ * Authenticate via the legacy JMAP /jmap/authentication endpoint.
  */
 export function getBearerToken(): Promise<string>;

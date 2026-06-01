@@ -18,20 +18,25 @@ For detailed installation and configuration instructions, please see [INSTALL.md
 npm install jmap-cli
 ```
 
-### TypeScript / ESM example
+### Quick start
 
 ```typescript
 import JmapClient from "jmap-cli";
 
-// Option 1: pass credentials directly
+// Option 1: pass a pre-existing access token
 const client = new JmapClient({
-  username: "user@example.com",
-  password: "supersecret",
   baseUrl: "https://api.fastmail.com",
+  token: "eyJhbGciOi...",
 });
 
-// Option 2: rely on env vars (JMAP_USERNAME, JMAP_PASSWORD, JMAP_BASE_URL)
-// or a config file init'd with `jmap-cli init`
+// Option 2: pass username/password (auto-login on first request)
+const client = new JmapClient({
+  baseUrl: "https://api.fastmail.com",
+  username: "user@example.com",
+  password: "supersecret",
+});
+
+// Option 3: rely on environment variables or `jmap-cli init`
 const client = new JmapClient();
 ```
 
@@ -81,79 +86,79 @@ import { TokenManager } from "jmap-cli/oauth";
 import { OAuthTokenRevoked, OAuthConfigurationError } from "jmap-cli/errors";
 ```
 
-## OAuth2 Authentication
+## Authentication
 
-jmap-cli supports **OAuth2** in addition to the default **Basic Auth**.
+jmap-cli uses **OAuth2** for all JMAP API requests. The token lifecycle is
+handled automatically.
 
-### Quick Start — OAuth2 with username/password
+### Quick Start — username/password auto-login
 
-The client auto-discovers the token endpoint, performs a password grant, and
-handles token refresh automatically:
+The CLI auto-discovers the token endpoint, performs a password grant, stores
+the access token in `JMAP_TOKEN` (in-memory), and handles refresh:
 
-```typescript
-import JmapClient from "jmap-cli";
-
-const client = new JmapClient({
-  baseUrl: "https://jmap.example.com",
-  authType: "oauth2",          // enable OAuth2 mode
-  username: "user@example.com",
-  password: "s3cret!",
-  // clientId: "custom-app",   // optional, default: "jmap-client"
-});
-
-const valid = await client.verifyCredentials();
-console.log(valid); // true
+```bash
+export JMAP_BASE_URL="https://jmap.example.com"
+export JMAP_USERNAME="user@example.com"
+export JMAP_PASSWORD="s3cret!"
+jmap-cli mailboxes
 ```
+
+The first command will print `Authenticating…` and then proceed normally.
+Subsequent commands reuse the cached token.
 
 ### Using a pre-existing access token
 
-```typescript
-const client = new JmapClient({
-  baseUrl: "https://jmap.example.com",
-  authType: "oauth2",
-  accessToken: "eyJhbGciOi...",   // JWT obtained out-of-band
-});
+```bash
+export JMAP_TOKEN="eyJhbGciOi..."
+jmap-cli mailboxes
 ```
 
-### Using a refresh token (auto-refresh enabled by default)
+### Using a refresh token
 
-```typescript
-const client = new JmapClient({
-  baseUrl: "https://jmap.example.com",
-  authType: "oauth2",
-  refreshToken: "rt_abc123...",
-});
+```bash
+export JMAP_REFRESH_TOKEN="rt_abc123..."
+jmap-cli mailboxes
 ```
 
-When the access token expires, the client automatically refreshes it using
-the refresh token. If the server responds with `invalid_grant`, the refresh
-token is considered revoked and an `OAuthTokenRevoked` error is thrown.
+When the access token expires, the client automatically refreshes it. If
+the server returns `invalid_grant`, the token is considered revoked and an
+error is raised.
 
 ### Configuration via environment variables
 
 ```
-JMAP_AUTH_TYPE=oauth2
-JMAP_ACCESS_TOKEN=eyJhbGciOi...
-JMAP_REFRESH_TOKEN=rt_abc123...
-JMAP_CLIENT_ID=jmap-client
-JMAP_AUTH_TOKEN_ENDPOINT=https://jmap.example.com/auth/token
-JMAP_AUTO_REFRESH=true
+# Required
+JMAP_BASE_URL=https://jmap.example.com
+
+# Authentication (pick one)
+JMAP_TOKEN=eyJhbGciOi...                    # pre-existing access token
+JMAP_USERNAME=user@example.com              # will auto-login
+JMAP_PASSWORD=s3cret!
+
+# Optional
+JMAP_REFRESH_TOKEN=rt_abc123...             # auto-populated on login
+JMAP_CLIENT_ID=jmap-client                  # default
+JMAP_AUTH_TOKEN_ENDPOINT=https://.../token  # explicit endpoint
 ```
 
-### Migration from Basic Auth to OAuth2
+### Programmatic usage
 
-1. Generate OAuth2 credentials (or obtain an access token) for your JMAP
-   server.
-2. Update your config file at `~/.config/jmap-cli/config`:
-   ```
-   JMAP_BASE_URL="https://jmap.example.com"
-   JMAP_AUTH_TYPE="oauth2"
-   JMAP_USERNAME="user@example.com"
-   JMAP_PASSWORD="s3cret!"
-   ```
-3. Remove `JMAP_PASSWORD` after initial token acquisition if you prefer
-   refresh-token-only mode.
-4. Run `jmap-cli mailboxes` to verify everything works.
+```typescript
+import JmapClient from "jmap-cli";
+
+// Pre-existing token
+const client = new JmapClient({
+  baseUrl: "https://jmap.example.com",
+  token: "eyJhbGciOi...",
+});
+
+// Username/password (auto-login)
+const client = new JmapClient({
+  baseUrl: "https://jmap.example.com",
+  username: "user@example.com",
+  password: "s3cret!",
+});
+```
 
 ### Security warning
 
