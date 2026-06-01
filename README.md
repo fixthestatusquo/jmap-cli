@@ -8,35 +8,105 @@ A command-line interface for interacting with a JMAP server.
 
 For detailed installation and configuration instructions, please see [INSTALL.md](INSTALL.md).
 
-## Programmatic Usage (as a package)
-
-`jmap-cli` exports a `JmapClient` class for use in your own Node.js projects. Full TypeScript declarations (`.d.ts`) are bundled with the package.
-
-### Install as a dependency
+## Quick Start
 
 ```bash
-npm install jmap-cli
+# Set your JMAP server and credentials
+export JMAP_BASE_URL="https://mail.example.com"
+export JMAP_USERNAME="user@example.com"
+export JMAP_PASSWORD="s3cret!"
+
+# List your mailboxes
+jmap-cli mailboxes
 ```
 
-### Quick start
+If your server supports OAuth2, you can use the interactive device flow instead:
+
+```bash
+jmap-cli login
+```
+
+## Authentication
+
+jmap-cli supports several authentication strategies, tried in this order:
+
+### 1. Basic Auth (username/password)
+
+Set `JMAP_USERNAME` and `JMAP_PASSWORD` — the credentials are encoded as a
+Basic Auth header immediately. No OAuth2 involved, works with any JMAP server.
+
+```bash
+export JMAP_BASE_URL="https://mail.example.com"
+export JMAP_USERNAME="user@example.com"
+export JMAP_PASSWORD="s3cret!"
+jmap-cli mailboxes
+```
+
+### 2. Bearer Token (pre-existing JWT)
+
+Set `JMAP_TOKEN` to any access token you already have:
+
+```bash
+export JMAP_TOKEN="eyJhbGciOi..."
+jmap-cli mailboxes
+```
+
+### 3. Refresh Token
+
+If you have a refresh token, set `JMAP_REFRESH_TOKEN`. The client will
+automatically refresh the access token when it expires:
+
+```bash
+export JMAP_REFRESH_TOKEN="rt_abc123..."
+jmap-cli mailboxes
+```
+
+### 4. Device Authorization Grant (interactive login)
+
+Run `jmap login` for an interactive OAuth2 Device Authorization Grant
+(RFC 8628) flow:
+
+```bash
+jmap-cli login
+```
+
+This will:
+1. Contact the server's device authorization endpoint
+2. Show a URL and code to enter in your browser
+3. Wait until you complete the authorization
+4. Save the access and refresh tokens to `~/.config/jmap-cli/config`
+
+### Configuration file
+
+The config file is stored at `~/.config/jmap-cli/config` and uses a simple
+`KEY="value"` format. You can edit it directly or regenerate it with
+`jmap init`.
+
+```
+JMAP_BASE_URL="https://mail.example.com"
+JMAP_TOKEN="eyJhbGciOi..."
+JMAP_REFRESH_TOKEN="rt_abc123..."
+```
+
+## Programmatic Usage (as a package)
 
 ```typescript
 import JmapClient from "jmap-cli";
 
-// Option 1: pass a pre-existing access token
+// Pre-existing Bearer token
 const client = new JmapClient({
   baseUrl: "https://api.fastmail.com",
   token: "eyJhbGciOi...",
 });
 
-// Option 2: pass username/password (auto-login on first request)
+// Username/password (Basic Auth)
 const client = new JmapClient({
   baseUrl: "https://api.fastmail.com",
   username: "user@example.com",
   password: "supersecret",
 });
 
-// Option 3: rely on environment variables or `jmap-cli init`
+// Rely on environment variables
 const client = new JmapClient();
 ```
 
@@ -57,7 +127,7 @@ All methods return Promises and are fully typed:
 | `getMailbox(nameOrRole, createIfNotExist?)` | Look up a mailbox by name or role |
 | `listMailboxes()` | Get all mailboxes |
 | `createMailbox({ name, parentId? })` | Create a new mailbox |
-| `listen({ onMessage?, onEmailState? })` | Listen for real-time changes via EventSource |
+| `listen({ onMessage?, onEmailState? })` | Listen for real-time changes via WebSocket |
 
 ### Example: list inbox messages
 
@@ -86,145 +156,22 @@ import { TokenManager } from "jmap-cli/oauth";
 import { OAuthTokenRevoked, OAuthConfigurationError } from "jmap-cli/errors";
 ```
 
-## Authentication
+### Environment variables
 
-jmap-cli uses **OAuth2** for all JMAP API requests. The token lifecycle is
-handled automatically.
-
-### Quick Start — username/password auto-login
-
-The CLI auto-discovers the token endpoint, performs a password grant, stores
-the access token in `JMAP_TOKEN` (in-memory), and handles refresh:
-
-```bash
-export JMAP_BASE_URL="https://jmap.example.com"
-export JMAP_USERNAME="user@example.com"
-export JMAP_PASSWORD="s3cret!"
-jmap-cli mailboxes
-```
-
-The first command will print `Authenticating…` and then proceed normally.
-Subsequent commands reuse the cached token.
-
-### Using a pre-existing access token
-
-```bash
-export JMAP_TOKEN="eyJhbGciOi..."
-jmap-cli mailboxes
-```
-
-### Using a refresh token
-
-```bash
-export JMAP_REFRESH_TOKEN="rt_abc123..."
-jmap-cli mailboxes
-```
-
-When the access token expires, the client automatically refreshes it. If
-the server returns `invalid_grant`, the token is considered revoked and an
-error is raised.
-
-### Configuration via environment variables
-
-```
-# Required
-JMAP_BASE_URL=https://jmap.example.com
-
-# Authentication (pick one)
-JMAP_TOKEN=eyJhbGciOi...                    # pre-existing access token
-JMAP_USERNAME=user@example.com              # will auto-login
-JMAP_PASSWORD=s3cret!
-
-# Optional
-JMAP_REFRESH_TOKEN=rt_abc123...             # auto-populated on login
-JMAP_CLIENT_ID=jmap-client                  # default
-JMAP_AUTH_TOKEN_ENDPOINT=https://.../token  # explicit endpoint
-```
-
-### Programmatic usage
-
-```typescript
-import JmapClient from "jmap-cli";
-
-// Pre-existing token
-const client = new JmapClient({
-  baseUrl: "https://jmap.example.com",
-  token: "eyJhbGciOi...",
-});
-
-// Username/password (auto-login)
-const client = new JmapClient({
-  baseUrl: "https://jmap.example.com",
-  username: "user@example.com",
-  password: "s3cret!",
-});
-```
-
-### Security warning
-
-**Store refresh tokens securely.** A refresh token grants persistent access
-to the mail account. Treat it like a password:
-
-- Do not commit tokens to version control.
-- Set `JMAP_PERSIST_TOKENS=true` only in trusted environments.
-- Use file permissions (`chmod 600`) on any token files.
-
-### Stalwart-specific notes
-
-| Setting | Default |
+| Variable | Description |
 |---|---|
-| Token endpoint | `https://your-server.com/auth/token` |
-| Client ID for trusted apps | `jmap-client` |
-| Access token expiry | 1 hour |
-| Refresh token expiry | 30 days |
-| Refresh token renewal threshold | 4 days (new token issued below this) |
+| `JMAP_BASE_URL` | JMAP server base URL **(required)** |
+| `JMAP_TOKEN` | Access token (Bearer JWT or `Basic base64...`) |
+| `JMAP_USERNAME` | Username for Basic Auth |
+| `JMAP_PASSWORD` | Password for Basic Auth |
+| `JMAP_REFRESH_TOKEN` | OAuth2 refresh token (auto-refreshed on expiry) |
+| `JMAP_CLIENT_ID` | OAuth2 client ID (default: `jmap-client`) |
+| `JMAP_AUTH_TOKEN_ENDPOINT` | Explicit OAuth2 token endpoint |
+| `JMAP_AUTH_DEVICE_ENDPOINT` | Explicit device authorization endpoint |
+| `MAIL_FROM` | Default sender address |
+| `MAIL_FROM_NAME` | Default sender display name |
 
-### How token refresh works
-
-1. Before every API request, the client checks if the access token is expired
-   (or will expire within 60 seconds).
-2. If expired, it calls the token endpoint with `grant_type=refresh_token`.
-3. If the refresh succeeds, the new tokens are cached and the original request
-   proceeds with the new access token.
-4. If the API responds with **401 Unauthorized**, the client refreshes the
-   token **once** and retries the request **exactly once**.
-5. If the retry also fails with 401, the error is propagated to the caller.
-6. If the refresh itself fails with `invalid_grant`, the tokens are cleared
-   and an `OAuthTokenRevoked` error is raised — **no automatic retry with
-   username/password** (security measure).
-
-### Error handling
-
-```typescript
-import JmapClient from "jmap-cli";
-import {
-  OAuthTokenRevoked,
-  OAuthTokenExpired,
-  OAuthConfigurationError,
-  OAuthDiscoveryFailed,
-} from "jmap-cli/errors";
-
-try {
-  const client = new JmapClient({ baseUrl: "...", authType: "oauth2" });
-  await client.verifyCredentials();
-} catch (err) {
-  if (err instanceof OAuthTokenRevoked) {
-    console.error("Session expired — please re-authenticate.");
-  } else if (err instanceof OAuthConfigurationError) {
-    console.error("Bad config:", err.message);
-  }
-}
-```
-
-## Configuration
-
-Configuration is stored in `~/.config/jmap-cli/config`. To create or update the configuration, run:
-
-```bash
-jmap-cli init
-```
-
-## Usage
+## CLI Usage
 
 ```bash
 jmap-cli <command> [options]
@@ -232,103 +179,94 @@ jmap-cli <command> [options]
 
 ### Commands
 
-#### `mailboxes`
+| Command | Description |
+|---|---|
+| `init` | Initializes the CLI and creates a config file |
+| `login` | Interactive OAuth2 Device Authorization Grant login |
+| `mailboxes` | List mailboxes |
+| `mailbox` | Create a new mailbox |
+| `messages` | List messages in a mailbox |
+| `message` | Fetch a single message |
+| `send` | Send an email |
+| `search` | Search messages |
+| `keyword` | Set keywords (seen, answered, flagged…) on a message |
+| `move` | Move a message to a different mailbox |
+| `listen` | Listen for real-time updates (experimental) |
 
-Lists the mailboxes in your account.
+### `init`
 
-**Usage:**
+```bash
+jmap-cli init [url]
+```
+
+Walks through server URL, credentials, and sending prerequisites interactively.
+Writes everything to `~/.config/jmap-cli/config`.
+
+### `login`
+
+```bash
+jmap-cli login [options]
+```
+
+Interactive OAuth2 Device Authorization Grant (RFC 8628) flow.
+Displays a URL and code — open the URL in your browser, enter the code,
+and the CLI saves the resulting tokens to your config file.
+
+### `mailboxes`
 
 ```bash
 jmap-cli mailboxes [options]
 ```
 
 **Options:**
+- `-j, --json`: Output as JSON
 
-*   `-j, --json`: Output mailboxes as JSON
-*   `-h, --help`: Show this help message
-
-#### `messages`
-
-Lists the messages in a mailbox.
-
-**Usage:**
+### `messages`
 
 ```bash
 jmap-cli messages [mailbox] [options]
 ```
 
-**Arguments:**
-
-*   `mailbox`: Mailbox to list messages from (defaults to "Inbox")
-
 **Options:**
+- `-l, --limit <n>`: Number of messages (default: 10)
+- `--sort <prop>`: Sort property (receivedAt, from, to, subject, size)
+- `--order <asc|desc>`: Sort order (default: desc)
+- `--read[=true|false]`, `--answered[=true|false]`, `--starred[=true|false]`,
+  `--junk[=true|false]`, `--draft[=true|false]`: Filter by keyword
+- `-j, --json`: Output as JSON
 
-*   `-l, --limit <number>`: Number of messages to list (defaults to 10)
-*   `-j, --json`: Output messages as JSON
-*   `-h, --help`: Show this help message
-
-#### `message`
-
-Fetches a message.
-
-**Usage:**
+### `message`
 
 ```bash
 jmap-cli message <message-id> [options]
 ```
 
-**Arguments:**
-
-*   `message-id`: The ID of the message to fetch
-
 **Options:**
+- `-j, --json`: Output as JSON
 
-*   `-j, --json`: Output message as JSON
-*   `-h, --help`: Show this help message
-
-#### `send`
-
-Sends an email.
-
-**Usage:**
+### `send`
 
 ```bash
 jmap-cli send <to> [options]
 ```
 
-**Arguments:**
-
-*   `to`: Recipient's email address
-
 **Options:**
+- `--from <email>`: Sender address
+- `--from-name <name>`: Sender display name
+- `--subject <text>`: Email subject
+- `--text <text>`: Email body (reads from stdin if not provided)
+- `--attach <file>`: Attach a file
 
-*   `--from <email>`: Sender's email address (defaults to MAIL_FROM env var)
-*   `--from-name <name>`: Sender's name (defaults to MAIL_FROM_NAME env var)
-*   `--subject <subject>`: Email subject
-*   `--text <text>`: Email body (reads from stdin if not provided)
-*   `--attach <file>`: Attach a file to the email.
-*   `-h, --help`: Show this help message
-
-#### `search`
-
-Searches for messages with various criteria.
-
-**Usage:**
+### `search`
 
 ```bash
 jmap-cli search [options] [freeform_query]
 ```
 
 **Options:**
-
-*   `--from <string>`: Search by sender email address or name
-*   `--to <string>`: Search by recipient email address or name
-*   `--subject <string>`: Search by subject
-*   `--body <string>`: Search by body content
-*   `--before <date>`: Search for messages received before a specific date (YYYY-MM-DD)
-*   `--after <date>`: Search for messages received after a specific date (YYYY-MM-DD)
-*   `-l, --limit <number>`: Number of messages to list (defaults to 10)
-*   `--sort <string>`: Sort by property (e.g., receivedAt, from, to, subject, size)
-*   `--order <string>`: Sort order (asc or desc, defaults to desc)
-*   `-j, --json`: Output messages as JSON
-*   `-h, --help`: Show this help message
+- `--from <string>`, `--to <string>`, `--subject <string>`, `--body <string>`:
+  Filter by field
+- `--before <date>`, `--after <date>`: Filter by date (YYYY-MM-DD)
+- `-l, --limit <n>`: Number of messages (default: 10)
+- `--sort <prop>`, `--order <asc|desc>`: Sort control
+- `-j, --json`: Output as JSON
