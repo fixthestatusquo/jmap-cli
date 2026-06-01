@@ -42,7 +42,27 @@ export JMAP_PASSWORD="s3cret!"
 jmap-cli mailboxes
 ```
 
-### 2. Bearer Token (pre-existing JWT)
+### 2. Impersonation (Stalwart master user)
+
+Access another user's mailbox using the Stalwart master user feature.
+The login string is `<target>%<admin>` with the admin's password.
+
+```bash
+export JMAP_ADMIN="admin@example.org"
+export JMAP_PASSWORD="admin-secret"
+jmap impersonate --for john@example.org
+```
+
+Or interactively:
+
+```bash
+jmap impersonate --for john@example.org
+Impersonator email (admin account): admin@example.org
+Impersonator password:
+```
+After impersonation, all subsequent `jmap` commands run as the target user.
+
+### 3. Bearer Token (pre-existing JWT)
 
 Set `JMAP_TOKEN` to any access token you already have:
 
@@ -165,6 +185,7 @@ import { OAuthTokenRevoked, OAuthConfigurationError } from "jmap-cli/errors";
 | `JMAP_USERNAME` | Username for Basic Auth |
 | `JMAP_PASSWORD` | Password for Basic Auth |
 | `JMAP_REFRESH_TOKEN` | OAuth2 refresh token (auto-refreshed on expiry) |
+| `JMAP_ADMIN` | Admin email for Stalwart master user impersonation |
 | `JMAP_CLIENT_ID` | OAuth2 client ID (default: `jmap-client`) |
 | `JMAP_AUTH_TOKEN_ENDPOINT` | Explicit OAuth2 token endpoint |
 | `JMAP_AUTH_DEVICE_ENDPOINT` | Explicit device authorization endpoint |
@@ -183,6 +204,7 @@ jmap-cli <command> [options]
 |---|---|
 | `init` | Initializes the CLI and creates a config file |
 | `login` | Interactive OAuth2 Device Authorization Grant login |
+| `impersonate` | Access another user's mailbox (Stalwart master user) |
 | `mailboxes` | List mailboxes |
 | `mailbox` | Create a new mailbox |
 | `messages` | List messages in a mailbox |
@@ -211,6 +233,38 @@ jmap-cli login [options]
 Interactive OAuth2 Device Authorization Grant (RFC 8628) flow.
 Displays a URL and code — open the URL in your browser, enter the code,
 and the CLI saves the resulting tokens to your config file.
+
+### `impersonate`
+
+```bash
+jmap-cli impersonate --for <target-email> [options]
+```
+
+Access another user's mailbox using Stalwart's master user feature.
+The login string is `<target>%<admin>` — the admin password is used for
+authentication.
+
+**Options:**
+- `--for <email>`: Target mailbox to access **(required)**
+
+**Environment variables:**
+- `JMAP_ADMIN`: Admin email (prompted if not set)
+- `JMAP_PASSWORD`: Admin password (prompted if not set)
+
+**Examples:**
+
+```bash
+# Interactive
+jmap impersonate --for john@example.org
+
+# Non-interactive
+export JMAP_ADMIN="admin@example.org"
+export JMAP_PASSWORD="admin-secret"
+jmap impersonate --for john@example.org
+```
+
+After running, all subsequent `jmap` commands operate on the target
+user's mailbox.
 
 ### `mailboxes`
 
