@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import minimist from "minimist";
 import "../lib/config.js";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +49,10 @@ const commands = {
   login: {
     file: "./login.js",
     description: "Interactive OAuth2 Device Authorization Grant login",
+  },
+  impersonate: {
+    file: "./impersonate.js",
+    description: "Access another user's mailbox (Stalwart master user)",
   },
   mailboxes: {
     file: "./mailboxes.js",
@@ -109,8 +112,8 @@ ${Object.entries(commands)
       process.exit(command && command !== "help" ? 1 : 0);
     }
 
-    // Bootstrap token before running commands (except init and login)
-    if (command !== "init" && command !== "login") {
+    // Bootstrap token before running commands (except auth-related commands)
+    if (command !== "init" && command !== "login" && command !== "impersonate") {
       await bootstrapToken();
     }
 
