@@ -24,6 +24,12 @@
       ],
       "display": [
         "./lib/display.d.ts"
+      ],
+      "errors": [
+        "./lib/errors.d.ts"
+      ],
+      "oauth": [
+        "./lib/oauth.d.ts"
       ]
     }
   },

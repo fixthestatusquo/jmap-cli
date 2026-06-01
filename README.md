@@ -77,6 +77,138 @@ for (const msg of messages) {
 ```typescript
 import { getBearerToken } from "jmap-cli/auth";
 import { formatAndDisplayMessages } from "jmap-cli/display";
+import { TokenManager } from "jmap-cli/oauth";
+import { OAuthTokenRevoked, OAuthConfigurationError } from "jmap-cli/errors";
+```
+
+## OAuth2 Authentication
+
+jmap-cli supports **OAuth2** in addition to the default **Basic Auth**.
+
+### Quick Start — OAuth2 with username/password
+
+The client auto-discovers the token endpoint, performs a password grant, and
+handles token refresh automatically:
+
+```typescript
+import JmapClient from "jmap-cli";
+
+const client = new JmapClient({
+  baseUrl: "https://jmap.example.com",
+  authType: "oauth2",          // enable OAuth2 mode
+  username: "user@example.com",
+  password: "s3cret!",
+  // clientId: "custom-app",   // optional, default: "jmap-client"
+});
+
+const valid = await client.verifyCredentials();
+console.log(valid); // true
+```
+
+### Using a pre-existing access token
+
+```typescript
+const client = new JmapClient({
+  baseUrl: "https://jmap.example.com",
+  authType: "oauth2",
+  accessToken: "eyJhbGciOi...",   // JWT obtained out-of-band
+});
+```
+
+### Using a refresh token (auto-refresh enabled by default)
+
+```typescript
+const client = new JmapClient({
+  baseUrl: "https://jmap.example.com",
+  authType: "oauth2",
+  refreshToken: "rt_abc123...",
+});
+```
+
+When the access token expires, the client automatically refreshes it using
+the refresh token. If the server responds with `invalid_grant`, the refresh
+token is considered revoked and an `OAuthTokenRevoked` error is thrown.
+
+### Configuration via environment variables
+
+```
+JMAP_AUTH_TYPE=oauth2
+JMAP_ACCESS_TOKEN=eyJhbGciOi...
+JMAP_REFRESH_TOKEN=rt_abc123...
+JMAP_CLIENT_ID=jmap-client
+JMAP_AUTH_TOKEN_ENDPOINT=https://jmap.example.com/auth/token
+JMAP_AUTO_REFRESH=true
+```
+
+### Migration from Basic Auth to OAuth2
+
+1. Generate OAuth2 credentials (or obtain an access token) for your JMAP
+   server.
+2. Update your config file at `~/.config/jmap-cli/config`:
+   ```
+   JMAP_BASE_URL="https://jmap.example.com"
+   JMAP_AUTH_TYPE="oauth2"
+   JMAP_USERNAME="user@example.com"
+   JMAP_PASSWORD="s3cret!"
+   ```
+3. Remove `JMAP_PASSWORD` after initial token acquisition if you prefer
+   refresh-token-only mode.
+4. Run `jmap-cli mailboxes` to verify everything works.
+
+### Security warning
+
+**Store refresh tokens securely.** A refresh token grants persistent access
+to the mail account. Treat it like a password:
+
+- Do not commit tokens to version control.
+- Set `JMAP_PERSIST_TOKENS=true` only in trusted environments.
+- Use file permissions (`chmod 600`) on any token files.
+
+### Stalwart-specific notes
+
+| Setting | Default |
+|---|---|
+| Token endpoint | `https://your-server.com/auth/token` |
+| Client ID for trusted apps | `jmap-client` |
+| Access token expiry | 1 hour |
+| Refresh token expiry | 30 days |
+| Refresh token renewal threshold | 4 days (new token issued below this) |
+
+### How token refresh works
+
+1. Before every API request, the client checks if the access token is expired
+   (or will expire within 60 seconds).
+2. If expired, it calls the token endpoint with `grant_type=refresh_token`.
+3. If the refresh succeeds, the new tokens are cached and the original request
+   proceeds with the new access token.
+4. If the API responds with **401 Unauthorized**, the client refreshes the
+   token **once** and retries the request **exactly once**.
+5. If the retry also fails with 401, the error is propagated to the caller.
+6. If the refresh itself fails with `invalid_grant`, the tokens are cleared
+   and an `OAuthTokenRevoked` error is raised — **no automatic retry with
+   username/password** (security measure).
+
+### Error handling
+
+```typescript
+import JmapClient from "jmap-cli";
+import {
+  OAuthTokenRevoked,
+  OAuthTokenExpired,
+  OAuthConfigurationError,
+  OAuthDiscoveryFailed,
+} from "jmap-cli/errors";
+
+try {
+  const client = new JmapClient({ baseUrl: "...", authType: "oauth2" });
+  await client.verifyCredentials();
+} catch (err) {
+  if (err instanceof OAuthTokenRevoked) {
+    console.error("Session expired — please re-authenticate.");
+  } else if (err instanceof OAuthConfigurationError) {
+    console.error("Bad config:", err.message);
+  }
+}
 ```
 
 ## Configuration

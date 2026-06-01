@@ -93,6 +93,9 @@ export interface JmapSession {
   downloadUrl?: string;
   capabilities?: Record<string, unknown>;
   state?: string;
+  /** Stalwart may include OAuth endpoints */
+  oAuthTokenEndpoint?: string;
+  authTokenEndpoint?: string;
   [key: string]: unknown;
 }
 
@@ -114,6 +117,16 @@ export interface JmapIdentity {
   [key: string]: unknown;
 }
 
+// ----- OAuth2 types -----
+
+export type AuthType = "basic" | "oauth2";
+
+export interface OAuthTokenState {
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null;
+}
+
 // ----- Method-specific argument types -----
 
 export interface JmapClientOptions {
@@ -125,6 +138,20 @@ export interface JmapClientOptions {
   baseUrl?: string;
   /** Path to a dotenv config file (loaded automatically) */
   path?: string;
+
+  // --- OAuth2 options ---
+  /** Authentication type: "basic" (default) or "oauth2" */
+  authType?: AuthType;
+  /** Pre-existing OAuth2 access token (JWT) */
+  accessToken?: string;
+  /** Pre-existing OAuth2 refresh token */
+  refreshToken?: string;
+  /** OAuth2 client ID (default: "jmap-client" for Stalwart) */
+  clientId?: string;
+  /** Explicit OAuth2 token endpoint (skips auto-discovery) */
+  tokenEndpoint?: string;
+  /** Automatically refresh tokens when expired (default: true) */
+  autoRefresh?: boolean;
 }
 
 export interface SendEmailOptions {
@@ -244,17 +271,44 @@ export class JmapClient {
   baseUrl: string;
   /** Full JMAP API URL (baseUrl + "/jmap") */
   apiUrl: string;
-  /** HTTP Basic auth header value */
-  authHeader: string;
+  /** Authentication type: "basic" or "oauth2" */
+  authType: AuthType;
+  /** HTTP Basic auth header value (null in OAuth2 mode) */
+  authHeader: string | null;
 
   /**
    * Create a new JMAP client.
    *
    * Options are optional; missing values are populated from environment
-   * variables (JMAP_USERNAME, JMAP_PASSWORD, JMAP_BASE_URL) or a dotenv
-   * file pointed to by the `path` option.
+   * variables or a dotenv file pointed to by the `path` option.
+   *
+   * **Basic Auth (default):** Uses JMAP_USERNAME, JMAP_PASSWORD, JMAP_BASE_URL.
+   *
+   * **OAuth2:** Set `authType: "oauth2"` and provide one of:
+   *   - `username` + `password` → password grant (auto-discovers token endpoint)
+   *   - `accessToken` → pre-existing JWT
+   *   - `refreshToken` → will be used to refresh
+   *
+   * Environment variable equivalents: JMAP_AUTH_TYPE, JMAP_ACCESS_TOKEN,
+   * JMAP_REFRESH_TOKEN, JMAP_CLIENT_ID, JMAP_AUTH_TOKEN_ENDPOINT,
+   * JMAP_AUTO_REFRESH.
    */
   constructor(options?: JmapClientOptions);
+
+  /**
+   * Internal request wrapper.
+   * - Basic Auth: adds Authorization header automatically.
+   * - OAuth2: gets a valid token (refreshing if needed), adds Bearer header.
+   *   On 401, refreshes once and retries once.
+   * @internal
+   */
+  _request(url: string, options?: RequestInit): Promise<Response>;
+
+  /**
+   * Convenience wrapper that calls _request and parses JSON.
+   * @internal
+   */
+  _requestJson(url: string, options?: RequestInit): Promise<Record<string, unknown>>;
 
   /**
    * Fetch prerequisites for sending an email: the "Sent" mailbox ID,
@@ -293,6 +347,11 @@ export class JmapClient {
   getMessages(options: GetMessagesOptions): Promise<JmapMessage[]>;
 
   /**
+   * Fetch a single message by ID with resolved body content.
+   */
+  getMessage(options: { messageId: string }): Promise<JmapMessage | null>;
+
+  /**
    * Fetch all mailboxes for the account.
    * @internal
    */
@@ -309,14 +368,12 @@ export class JmapClient {
   searchMessages(options: SearchMessagesOptions): Promise<JmapMessage[]>;
 
   /**
-   * Listen for real-time message changes via JMAP Server-Sent Events
-   * (EventSource). Requires the JMAP base URL to support EventSource.
+   * Listen for real-time message changes via WebSocket / EventSource.
    */
-  listen(options: ListenOptions): Promise<void>;
+  listen(options?: ListenOptions): Promise<void>;
 
   /**
-   * Build the EventSource/WebSocket URL for real-time updates from a
-   * JMAP session.
+   * Build the WebSocket URL for real-time updates from a JMAP session.
    * @internal
    */
   _getWebSocketUrl(session: JmapSession): string;
@@ -342,6 +399,20 @@ export class JmapClient {
    * session and checking that primaryAccounts is returned.
    */
   verifyCredentials(): Promise<boolean>;
+
+  /**
+   * List all mailboxes (public alias for _getMailboxes).
+   */
+  listMailboxes(): Promise<JmapMailbox[]>;
 }
 
 export default JmapClient;
+
+// Re-export error types for convenience
+export {
+  OAuthError,
+  OAuthTokenExpired,
+  OAuthTokenRevoked,
+  OAuthDiscoveryFailed,
+  OAuthConfigurationError,
+} from "./errors.js";
