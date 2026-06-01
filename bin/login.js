@@ -4,7 +4,8 @@
 // jmap login — Device Authorization Grant (RFC 8628)
 //
 // Interactive OAuth2 login flow for CLI users.
-// Outputs JMAP_TOKEN and JMAP_REFRESH_TOKEN suitable for your config file.
+// Shows a URL, prompts to press Enter to open it in the browser,
+// polls until authorized, then saves tokens to the config file.
 // ---------------------------------------------------------------------------
 
 import minimist from "minimist";
@@ -13,6 +14,8 @@ import { TokenManager } from "../lib/oauth.js";
 import path from "path";
 import fs from "fs/promises";
 import os from "os";
+import readline from "readline";
+import { exec } from "child_process";
 import { fileURLToPath } from "url";
 
 const minimistOptions = {
@@ -25,8 +28,8 @@ Usage: jmap login [options]
 
 Initiates the OAuth2 Device Authorization Grant (RFC 8628) flow.
 
-You will be given a URL and a code to enter in your browser.
-The CLI waits until you complete the authorization.
+You will be shown a URL. Press Enter to open it in your browser,
+authorize the application, and the CLI will save the resulting tokens.
 
 Options:
   --client-id <id>   OAuth2 client ID (default: "jmap-client")
@@ -41,6 +44,49 @@ Environment variables:
 On success, tokens are written to the config file at
 ~/.config/jmap-cli/config and set in the current session.
 `;
+
+// ---------------------------------------------------------------------------
+// Open URL in the default browser (cross-platform)
+// ---------------------------------------------------------------------------
+
+function openBrowser(url) {
+  const platform = process.platform;
+  const cmd =
+    platform === "darwin"
+      ? `open "${url}"`
+      : platform === "win32"
+        ? `start "" "${url}"`
+        : `xdg-open "${url}"`;
+
+  return new Promise((resolve, reject) => {
+    exec(cmd, (error) => {
+      if (error) {
+        // Non-fatal — user can still open the URL manually
+        resolve(false);
+      } else {
+        resolve(true);
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Prompt for Enter key
+// ---------------------------------------------------------------------------
+
+function pressEnterToContinue(promptText) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(promptText, () => {
+      rl.close();
+      resolve();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 export async function main(argv) {
   const args = minimist(argv, minimistOptions);
@@ -65,7 +111,31 @@ export async function main(argv) {
   });
 
   try {
-    const token = await tm.deviceLogin();
+    // deviceLogin will call onInstruction with the URL + code, then poll.
+    // We pass an async callback that prompts + opens the browser.
+    const token = await tm.deviceLogin({
+      onInstruction: async ({ userCode, verificationUri }) => {
+        console.log("");
+        console.log("╔══════════════════════════════════════════════════╗");
+        console.log("║         Device Authorization Required           ║");
+        console.log("╠══════════════════════════════════════════════════╣");
+        console.log("║                                                  ");
+        console.log(`║  Code:  ${userCode}`);
+        console.log("║                                                  ");
+        console.log("║  The CLI will open your browser so you can       ");
+        console.log("║  authorize this application.                     ");
+        console.log("╚══════════════════════════════════════════════════╝");
+        console.log("");
+
+        await pressEnterToContinue("Press Enter to open in your browser… ");
+
+        const opened = await openBrowser(verificationUri);
+        if (!opened) {
+          console.log(`\nPlease open this URL manually:\n  ${verificationUri}\n`);
+        }
+        console.log("Waiting for authorization…");
+      },
+    });
 
     console.log("\n✓ Authorization successful!");
 
