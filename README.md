@@ -2,9 +2,82 @@
 
 A command-line interface for interacting with a JMAP server.
 
+`jmap-cli` can also be used **programmatically as a Node package** with full TypeScript type definitions.
+
 ## Installation
 
 For detailed installation and configuration instructions, please see [INSTALL.md](INSTALL.md).
+
+## Programmatic Usage (as a package)
+
+`jmap-cli` exports a `JmapClient` class for use in your own Node.js projects. Full TypeScript declarations (`.d.ts`) are bundled with the package.
+
+### Install as a dependency
+
+```bash
+npm install jmap-cli
+```
+
+### TypeScript / ESM example
+
+```typescript
+import JmapClient from "jmap-cli";
+
+// Option 1: pass credentials directly
+const client = new JmapClient({
+  username: "user@example.com",
+  password: "supersecret",
+  baseUrl: "https://api.fastmail.com",
+});
+
+// Option 2: rely on env vars (JMAP_USERNAME, JMAP_PASSWORD, JMAP_BASE_URL)
+// or a config file init'd with `jmap-cli init`
+const client = new JmapClient();
+```
+
+### Available methods
+
+All methods return Promises and are fully typed:
+
+| Method | Description |
+|---|---|
+| `verifyCredentials()` | Check that stored credentials are valid |
+| `listMessages({ mailboxName, limit?, sort?, order?, keywords? })` | List messages in a mailbox |
+| `getMessage({ messageId })` | Fetch a single message by ID |
+| `getMessages({ messageIds })` | Fetch multiple messages by IDs |
+| `sendEmail({ from, fromName, to, subject, text, attachment? })` | Send an email |
+| `searchMessages({ filter, sort?, order? })` | Search messages with JMAP filter conditions |
+| `updateMessage({ messageId, update })` | Update keywords, mailbox membership, etc. |
+| `moveMessage({ messageId, toMailbox })` | Move a message to another mailbox by name |
+| `getMailbox(nameOrRole, createIfNotExist?)` | Look up a mailbox by name or role |
+| `listMailboxes()` | Get all mailboxes |
+| `createMailbox({ name, parentId? })` | Create a new mailbox |
+| `listen({ onMessage?, onEmailState? })` | Listen for real-time changes via EventSource |
+
+### Example: list inbox messages
+
+```typescript
+import JmapClient from "jmap-cli";
+
+const client = new JmapClient();
+const messages = await client.listMessages({
+  mailboxName: "Inbox",
+  limit: 5,
+  sort: "receivedAt",
+  order: "desc",
+});
+
+for (const msg of messages) {
+  console.log(`${msg.subject} — ${msg.from.map(f => f.name).join(", ")}`);
+}
+```
+
+### Subpath imports
+
+```typescript
+import { getBearerToken } from "jmap-cli/auth";
+import { formatAndDisplayMessages } from "jmap-cli/display";
+```
 
 ## Configuration
 

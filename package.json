@@ -4,8 +4,12 @@
   "description": "A command-line interface for JMAP servers.",
   "type": "module",
   "main": "./lib/jmap.js",
+  "types": "./lib/jmap.d.ts",
   "exports": {
-    ".": "./lib/jmap.js"
+    ".": {
+      "types": "./lib/jmap.d.ts",
+      "default": "./lib/jmap.js"
+    }
   },
   "bin": "./bin/jmap.js",
   "files": [
@@ -13,6 +17,16 @@
     "lib",
     "README.md"
   ],
+  "typesVersions": {
+    "*": {
+      "auth": [
+        "./lib/auth.d.ts"
+      ],
+      "display": [
+        "./lib/display.d.ts"
+      ]
+    }
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "init": "./bin/init.js"
