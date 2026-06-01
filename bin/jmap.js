@@ -27,7 +27,6 @@ async function bootstrapToken() {
   // Discover the token endpoint
   let tokenEndpoint = process.env.JMAP_AUTH_TOKEN_ENDPOINT;
   if (!tokenEndpoint) {
-    // Try /.well-known/jmap first
     try {
       const sessionRes = await fetch(
         `${baseUrl.replace(/\/+$/, "")}/.well-known/jmap`,
@@ -44,7 +43,6 @@ async function bootstrapToken() {
     } catch {
       // fall through
     }
-    // Fall back to constructed URL
     if (!tokenEndpoint) {
       tokenEndpoint = `${baseUrl.replace(/\/+$/, "")}/auth/token`;
     }
@@ -52,29 +50,49 @@ async function bootstrapToken() {
 
   const clientId = process.env.JMAP_CLIENT_ID || "jmap-client";
 
-  const body = new URLSearchParams();
-  body.set("grant_type", "password");
-  body.set("username", username);
-  body.set("password", password);
-  body.set("client_id", clientId);
-
   console.error("Authenticating…");
 
-  const res = await fetch(tokenEndpoint, {
+  // Build form-urlencoded body
+  const formBody = new URLSearchParams();
+  formBody.set("grant_type", "password");
+  formBody.set("username", username);
+  formBody.set("password", password);
+  formBody.set("client_id", clientId);
+
+  // Try form-urlencoded first (OAuth2 standard), fall back to JSON
+  let res = await fetch(tokenEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Accept: "application/json",
     },
-    body: body.toString(),
+    body: formBody.toString(),
   });
+
+  // Some servers (e.g. Stalwart) also accept JSON
+  if (!res.ok && res.status === 400) {
+    const jsonBody = JSON.stringify({
+      grant_type: "password",
+      username,
+      password,
+      client_id: clientId,
+    });
+    res = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: jsonBody,
+    });
+  }
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}));
     console.error(
-      `Authentication failed: ${res.status} ${
+      `Authentication failed: ${res.status} "${
         errBody.error_description || errBody.error || res.statusText
-      }`,
+      }" — endpoint: ${tokenEndpoint}`,
     );
     process.exit(1);
   }
