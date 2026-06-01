@@ -7,13 +7,15 @@ export interface TokenManagerOptions {
   baseUrl?: string;
   /** Explicit token endpoint URL (skips auto-discovery) */
   tokenEndpoint?: string;
+  /** Explicit device authorization endpoint (skips auto-discovery) */
+  deviceEndpoint?: string;
   /** OAuth2 client ID (default: "jmap-client") */
   clientId?: string;
-  /** JMAP username (for password grant) */
+  /** JMAP username (for Basic Auth) */
   username?: string;
-  /** JMAP password (for password grant) */
+  /** JMAP password (for Basic Auth) */
   password?: string;
-  /** Pre-existing access token (JWT) — JMAP_TOKEN */
+  /** Pre-existing access token — JMAP_TOKEN */
   token?: string;
   /** Pre-existing refresh token — JMAP_REFRESH_TOKEN */
   refreshToken?: string;
@@ -26,20 +28,19 @@ export interface OAuthTokenState {
 }
 
 /**
- * Manages the OAuth2 token lifecycle for JMAP:
- *   - Auto-discovery of the token endpoint
- *   - Initial token acquisition via password grant
- *   - Token refresh via refresh_token grant
- *   - Token expiry validation with configurable buffer
- *   - Single retry on 401 responses
+ * Manages authentication for jmap-cli.
  *
- * All values fall back to environment variables:
- *   JMAP_TOKEN, JMAP_REFRESH_TOKEN, JMAP_USERNAME, JMAP_PASSWORD,
- *   JMAP_BASE_URL, JMAP_CLIENT_ID, JMAP_AUTH_TOKEN_ENDPOINT
+ * Supports three strategies:
+ *   - Basic Auth (username + password → "Basic base64" header)
+ *   - OAuth2 Bearer token with refresh_token grant
+ *   - Device Authorization Grant (RFC 8628) for interactive CLI login
+ *
+ * All values fall back to environment variables.
  */
 export class TokenManager {
   baseUrl: string;
   tokenEndpoint: string;
+  deviceEndpoint: string;
   clientId: string;
   username: string;
   password: string;
@@ -48,7 +49,7 @@ export class TokenManager {
 
   /**
    * Ensure a valid access token is available.
-   * Order: cached token → refresh token → password grant.
+   * Order: Basic Auth → cached Bearer → refresh token → error.
    */
   getValidToken(): Promise<string>;
 
@@ -70,11 +71,25 @@ export class TokenManager {
   /** Clear all stored tokens (logout / revocation). */
   clearTokens(): void;
 
-  /** @internal Discover the token endpoint from JMAP session or construct */
+  /** Set a Basic Auth token from username:password. */
+  setBasicAuth(username: string, password: string): void;
+
+  /**
+   * Initiate Device Authorization Grant (RFC 8628) flow.
+   * Displays a URL + code, polls until user authorizes, returns token.
+   */
+  deviceLogin(options?: {
+    onInstruction?: (info: {
+      userCode: string;
+      verificationUri: string;
+    }) => void;
+  }): Promise<string>;
+
+  /** @internal Discover the token endpoint */
   _discoverTokenEndpoint(sessionUrl?: string): Promise<string>;
 
-  /** @internal Acquire tokens via password grant */
-  _acquireToken(): Promise<void>;
+  /** @internal Discover the device authorization endpoint */
+  _discoverDeviceEndpoint(sessionUrl?: string): Promise<string>;
 
   /** @internal Refresh tokens via refresh_token grant */
   _refresh(): Promise<void>;

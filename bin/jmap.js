@@ -4,102 +4,38 @@ import minimist from "minimist";
 import "../lib/config.js";
 
 // ---------------------------------------------------------------------------
-// Token bootstrap: if JMAP_TOKEN is not set but username/password are,
-// perform an OAuth2 password grant to obtain tokens and populate env vars.
-// This way all sub-commands just see JMAP_TOKEN / JMAP_REFRESH_TOKEN.
+// Token bootstrap
+//
+// Priority:
+//   1. JMAP_TOKEN is set → use as-is (Bearer JWT or Basic base64)
+//   2. JMAP_REFRESH_TOKEN is set → will be used by TokenManager on demand
+//   3. JMAP_USERNAME + JMAP_PASSWORD → Basic Auth (no OAuth2 attempt)
+//   4. Nothing → error (run `jmap login` or configure credentials)
 // ---------------------------------------------------------------------------
 
 async function bootstrapToken() {
-  // Already have a token? Nothing to do.
   if (process.env.JMAP_TOKEN) return;
 
-  const baseUrl = process.env.JMAP_BASE_URL;
+  // If we have a refresh token, let TokenManager handle it lazily
+  if (process.env.JMAP_REFRESH_TOKEN) return;
+
   const username = process.env.JMAP_USERNAME;
   const password = process.env.JMAP_PASSWORD;
 
-  if (!baseUrl || !username || !password) {
-    console.error(
-      "Missing configuration. Set JMAP_BASE_URL and JMAP_TOKEN, or JMAP_USERNAME + JMAP_PASSWORD.",
-    );
-    process.exit(1);
-  }
-
-  // Discover the token endpoint
-  let tokenEndpoint = process.env.JMAP_AUTH_TOKEN_ENDPOINT;
-  if (!tokenEndpoint) {
-    try {
-      const sessionRes = await fetch(
-        `${baseUrl.replace(/\/+$/, "")}/.well-known/jmap`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        },
-      );
-      if (sessionRes.ok) {
-        const session = await sessionRes.json();
-        tokenEndpoint =
-          session.oAuthTokenEndpoint || session.authTokenEndpoint;
-      }
-    } catch {
-      // fall through
-    }
-    if (!tokenEndpoint) {
-      tokenEndpoint = `${baseUrl.replace(/\/+$/, "")}/auth/token`;
-    }
-  }
-
-  const clientId = process.env.JMAP_CLIENT_ID || "jmap-client";
-
-  console.error("Authenticating…");
-
-  // Build form-urlencoded body
-  const formBody = new URLSearchParams();
-  formBody.set("grant_type", "password");
-  formBody.set("username", username);
-  formBody.set("password", password);
-  formBody.set("client_id", clientId);
-
-  // Try form-urlencoded first (OAuth2 standard), fall back to JSON
-  let res = await fetch(tokenEndpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body: formBody.toString(),
-  });
-
-  // Some servers (e.g. Stalwart) also accept JSON
-  if (!res.ok && res.status === 400) {
-    const jsonBody = JSON.stringify({
-      grant_type: "password",
-      username,
-      password,
-      client_id: clientId,
-    });
-    res = await fetch(tokenEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: jsonBody,
-    });
-  }
-
-  if (!res.ok) {
-    // OAuth2 failed — fall back to Basic Auth with username/password
+  if (username && password) {
+    // Basic Auth — encode immediately, no OAuth2 attempt
     const basic = Buffer.from(`${username}:${password}`).toString("base64");
     process.env.JMAP_TOKEN = `Basic ${basic}`;
-    console.error("Using Basic Auth.");
     return;
   }
 
-  const data = await res.json();
-  process.env.JMAP_TOKEN = data.access_token;
-  if (data.refresh_token) {
-    process.env.JMAP_REFRESH_TOKEN = data.refresh_token;
-  }
+  console.error(
+    "Missing configuration. Options:\n" +
+      "  - Set JMAP_TOKEN (Bearer or Basic token)\n" +
+      "  - Set JMAP_USERNAME + JMAP_PASSWORD (Basic Auth)\n" +
+      "  - Run `jmap login` (interactive OAuth2 device flow)",
+  );
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +46,10 @@ const commands = {
   init: {
     file: "./init.js",
     description: "Initializes the CLI and creates a .env file",
+  },
+  login: {
+    file: "./login.js",
+    description: "Interactive OAuth2 Device Authorization Grant login",
   },
   mailboxes: {
     file: "./mailboxes.js",
@@ -169,8 +109,8 @@ ${Object.entries(commands)
       process.exit(command && command !== "help" ? 1 : 0);
     }
 
-    // Bootstrap token before running any command (except init)
-    if (command !== "init") {
+    // Bootstrap token before running commands (except init and login)
+    if (command !== "init" && command !== "login") {
       await bootstrapToken();
     }
 
