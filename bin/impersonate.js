@@ -40,7 +40,7 @@ Options:
   -h, --help          Show this help message
 
 Environment variables:
-  JMAP_IMPERSONATOR   The administrator email with impersonate permission
+  JMAP_ADMIN         The administrator email with impersonate permission
   JMAP_PASSWORD       The administrator's password
   JMAP_BASE_URL       JMAP server base URL
 
@@ -49,7 +49,7 @@ Examples:
   jmap impersonate --for john@example.org  (prompts for impersonator creds)
 
   # With env vars set:
-  export JMAP_IMPERSONATOR="admin@example.org"
+  export JMAP_ADMIN="admin@example.org"
   export JMAP_PASSWORD="admin-secret"
   jmap impersonate --for john@example.org
 
@@ -111,7 +111,7 @@ export async function main(argv) {
   }
 
   // Get impersonator credentials
-  let impersonator = process.env.JMAP_IMPERSONATOR;
+  let impersonator = process.env.JMAP_ADMIN;
   let password = process.env.JMAP_PASSWORD;
 
   if (!impersonator) {
@@ -168,7 +168,7 @@ export async function main(argv) {
     // Update with impersonation settings (preserve existing baseUrl)
     existing.JMAP_BASE_URL = existing.JMAP_BASE_URL || process.env.JMAP_BASE_URL;
     existing.JMAP_TOKEN = process.env.JMAP_TOKEN;
-    existing.JMAP_IMPERSONATOR = impersonator;
+    existing.JMAP_ADMIN = impersonator;
     // Remove any stale OAuth2 refresh token
     delete existing.JMAP_REFRESH_TOKEN;
 
