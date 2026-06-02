@@ -82,6 +82,8 @@ export interface JmapMessage {
   "header:Priority:asText"?: string;
   /** Header: Auto-Submitted */
   "header:Auto-Submitted:asText"?: string;
+  /** Message-ID header value */
+  messageID?: string;
   [key: string]: unknown;
 }
 
