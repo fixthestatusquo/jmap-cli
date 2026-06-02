@@ -136,7 +136,7 @@ export interface JmapClientOptions {
   clientId?: string;
   /** Explicit OAuth2 token endpoint — also JMAP_AUTH_TOKEN_ENDPOINT env var */
   tokenEndpoint?: string;
-  /** Path to a dotenv config file (loaded automatically) */
+  /** Path to a .env config file (loaded automatically) */
   path?: string;
 }
 
