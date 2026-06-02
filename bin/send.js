@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import minimist from 'minimist';
-import { JmapClient } from '../lib/jmap.js';
-import '../lib/config.js';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+import minimist from "minimist";
+import { JmapClient } from "../lib/jmap.js";
+import "../lib/config.js";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 const help = `
 Usage: jmap send <to> [options]
@@ -21,11 +21,11 @@ Options:
   -h, --help           Show this help message
 `;
 const minimistOptions = {
-  string: ['from', 'from-name', 'subject', 'text', 'attach'],
-  boolean: ['help'],
-  alias: { h: 'help', s: 'subject' },
+  string: ["from", "from-name", "subject", "text", "attach"],
+  boolean: ["help"],
+  alias: { h: "help", s: "subject" },
   unknown: (arg) => {
-    if (arg.startsWith('-')) {
+    if (arg.startsWith("-")) {
       console.error(`Unknown argument: ${arg}`);
       process.exit(1);
     }
@@ -38,16 +38,20 @@ export async function main(argv) {
   const to = args._[0];
 
   if (args._.length !== 1) {
-    console.error('Error: Please provide exactly one recipient email address.');
+    console.error("Error: Please provide exactly one recipient email address.");
     console.log(help);
     process.exit(1);
   }
 
-  const { from = process.env.MAIL_FROM, 'from-name': fromName = process.env.MAIL_FROM_NAME, subject, attach } = args;
+  const {
+    from = process.env.MAIL_FROM,
+    "from-name": fromName = process.env.MAIL_FROM_NAME,
+    subject,
+    attach,
+  } = args;
   let { text } = args;
 
   if (args.help || !from || !to || !subject) {
-console.log(from,to,subject);
     console.log(help);
     process.exit(0);
   }
@@ -69,18 +73,25 @@ console.log(from,to,subject);
 
   if (!text) {
     if (process.stdin.isTTY) {
-      console.log('Type your message followed by ctrl-d');
+      console.log("Type your message followed by ctrl-d");
     }
     const chunks = [];
     for await (const chunk of process.stdin) {
       chunks.push(chunk);
     }
-    text = Buffer.concat(chunks).toString('utf8');
+    text = Buffer.concat(chunks).toString("utf8");
   }
 
   const jmapClient = new JmapClient();
-  const result = await jmapClient.sendEmail({ from, fromName, to, subject, text, attachment });
-  const emailSet = result.methodResponses.find(r => r[0] === 'Email/set');
+  const result = await jmapClient.sendEmail({
+    from,
+    fromName,
+    to,
+    subject,
+    text,
+    attachment,
+  });
+  const emailSet = result.methodResponses.find((r) => r[0] === "Email/set");
   if (emailSet && emailSet[1].created) {
     for (const key in emailSet[1].created) {
       const id = emailSet[1].created[key].id;
@@ -91,6 +102,9 @@ console.log(from,to,subject);
   }
 }
 
-if (import.meta.url.startsWith('file:') && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  import.meta.url.startsWith("file:") &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   main(process.argv.slice(2));
 }
