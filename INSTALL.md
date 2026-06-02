@@ -23,7 +23,7 @@ npm install -g .
 
 ## 3. Configure jmap-cli
 
-After installation, you need to configure `jmap-cli` with your JMAP server details and the app password you created.
+After installation, you need to configure `jmap-cli` with your JMAP server URL.
 
 Run the following command and follow the prompts:
 
@@ -31,5 +31,15 @@ Run the following command and follow the prompts:
 jmap-cli init
 ```
 
-This will ask for your JMAP server URL, your username, and the app password you generated in Stalwart. 
-Once done, it will save it into a config file at `~/.config/jmap-cli/config` and that will be used transparently for all the future commands
+This will ask for your JMAP server URL. After saving it, `init` will offer to
+start the interactive OAuth2 Device Authorization Grant (RFC 8628) login flow,
+which opens your browser to authorize `jmap-cli` and saves the resulting tokens
+to `~/.config/jmap-cli/config`.
+
+You can also run the login step separately at any time:
+
+```bash
+jmap-cli login
+```
+
+Once configured, the config file is used transparently for all future commands.

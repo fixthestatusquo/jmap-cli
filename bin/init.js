@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 import minimist from 'minimist';
 import '../lib/config.js'; // Ensure dotenv is loaded
-import { JmapClient } from '../lib/jmap.js';
 import fs from 'fs/promises';
 import readline from 'readline';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import "../lib/config.js";
 
 const homeDir = os.homedir();
 const configDir = path.join(homeDir, '.config', 'jmap-cli');
@@ -18,11 +16,15 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-function question(query, currentValue) {
-  const prompt = currentValue ? `${query} [${currentValue}] ` : `${query} `;
+function question(query, defaultValue) {
+  const prompt = defaultValue ? `${query} [${defaultValue}] ` : `${query} `;
   return new Promise((resolve) => rl.question(prompt, (answer) => {
-    resolve(answer || currentValue);
+    resolve(answer || defaultValue || '');
   }));
+}
+
+function closeRl() {
+  try { rl.close(); } catch { /* ignore */ }
 }
 
 const minimistOptions = {
@@ -45,10 +47,16 @@ export async function main(argv) {
 Usage: init [url] [options]
 
 Arguments:
-  url                    The base URL of the Stalwart JMAP server (e.g., https://jmap.example.com)
+  url                    The base URL of the JMAP server (e.g., https://jmap.example.com)
 
 Options:
   -h, --help             Show this help message
+
+Description:
+  Walks through server URL setup and offers to initiate the OAuth2
+  Device Authorization Grant (RFC 8628) login flow.
+
+  After init completes, you can use other jmap-cli commands.
 `;
 
   if (args.help) {
@@ -56,6 +64,7 @@ Options:
     process.exit(0);
   }
 
+  // Load existing config for defaults
   let existingConfig = {};
   try {
     const configContent = await fs.readFile(configFilePath, 'utf-8');
@@ -66,10 +75,9 @@ Options:
       }
     });
   } catch (error) {
-    // If the file doesn't exist, do nothing.
     if (error.code !== 'ENOENT') {
       console.error(`Error reading config file at ${configFilePath}:`, error.message);
-      rl.close();
+      closeRl();
       return;
     }
   }
@@ -80,38 +88,33 @@ Options:
     jmapBaseUrl = await question('Enter the JMAP base URL (e.g., https://jmap.example.com):');
   }
 
-  const jmapUsername = await question('Enter your email address (login):', existingConfig.JMAP_USERNAME);
-  const jmapPassword = await question('Enter your JMAP password:', existingConfig.JMAP_PASSWORD);
-  const mailFrom = await question(`Enter the MAIL_FROM address:`, existingConfig.MAIL_FROM || jmapUsername) || jmapUsername;
-  const mailFromName = await question('Enter your sender name:', existingConfig.MAIL_FROM_NAME);
-
-  const client = new JmapClient({username: jmapUsername, password: jmapPassword, baseUrl:jmapBaseUrl});
-  const isValid = await client.verifyCredentials();
-
-  if (!isValid) {
-    console.error('Error: Invalid credentials or JMAP URL.');
-    rl.close();
-    return;
+  if (!jmapBaseUrl) {
+    console.error('Error: A JMAP base URL is required.');
+    closeRl();
+    process.exit(1);
   }
 
-  const session = await client._discoverSession();
-  const accountId = client.getAccountId(session);
-  const { outboxId, identityId, identityEmail } = await client.getSendPrerequisites(accountId);
+  // Save the URL immediately
+  const envContent = `JMAP_BASE_URL="${jmapBaseUrl}"\n`;
+  await fs.mkdir(configDir, { recursive: true });
+  await fs.writeFile(configFilePath, envContent);
+  console.log(`\n✓ JMAP base URL saved to ${configFilePath}\n`);
 
-  const envContent = `JMAP_BASE_URL="${jmapBaseUrl}"\nJMAP_USERNAME="${jmapUsername}"\nJMAP_PASSWORD="${jmapPassword}"\nMAIL_FROM="${mailFrom}"\nJMAP_SENT_MAILBOX_ID="${outboxId}"\nJMAP_IDENTITY_ID="${identityId}"\nJMAP_IDENTITY_EMAIL="${identityEmail}"
-MAIL_FROM_NAME="${mailFromName}"
+  // Offer device login
+  const shouldLogin = await question('Would you like to log in via OAuth2 device flow? (Y/n)', 'y');
 
-`;
+  if (shouldLogin.toLowerCase() === 'y' || shouldLogin.toLowerCase() === 'yes' || shouldLogin === '') {
+    closeRl();
 
-  try {
-    await fs.mkdir(configDir, { recursive: true });
-    await fs.writeFile(configFilePath, envContent);
-    console.log(`\nConfig file generated successfully at ${configFilePath}!`);
-  } catch (error) {
-    console.error(`\nError writing config file at ${configFilePath}:`, error.message);
+    // Set the URL so login.js picks it up from the environment
+    process.env.JMAP_BASE_URL = jmapBaseUrl;
+
+    const { main: loginMain } = await import('./login.js');
+    await loginMain([]);
+  } else {
+    console.log(`\nSkipping login. You can run \`jmap-cli login\` later or manually edit ${configFilePath}\n`);
+    closeRl();
   }
-
-  rl.close();
 }
 
 if (import.meta.url.startsWith('file:') && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
