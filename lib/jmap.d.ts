@@ -224,8 +224,8 @@ export interface UpdateMessageOptions {
 }
 
 export interface ListenOptions {
-  /** Callback fired for each new/changed message */
-  onMessage?: (message: JmapMessage) => void;
+  /** Callback fired with the array of changed message IDs on each update */
+  onMessage?: (changed: string[]) => void;
   /** Callback fired when Email state changes */
   onEmailState?: (state: string) => void;
 }
@@ -342,9 +342,10 @@ export class JmapClient {
   searchMessages(options: SearchMessagesOptions): Promise<JmapMessage[]>;
 
   /**
-   * Listen for real-time message changes via WebSocket / EventSource.
+   * Listen for real-time message changes via WebSocket / EventSource
+   * (RFC 8887 subprotocol authentication).
    */
-  listen(options?: ListenOptions): Promise<void>;
+  listen(options?: ListenOptions): Promise<import("./socket.js").JmapSocketHandle>;
 
   /**
    * Build the WebSocket URL for real-time updates from a JMAP session.
