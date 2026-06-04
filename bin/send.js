@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import minimist from "minimist";
 import { JmapClient } from "../lib/jmap.js";
-import "../lib/config.js";
+import { getClientOptions } from "../lib/config.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -82,7 +82,7 @@ export async function main(argv) {
     text = Buffer.concat(chunks).toString("utf8");
   }
 
-  const jmapClient = new JmapClient();
+  const jmapClient = new JmapClient(getClientOptions());
   const result = await jmapClient.sendEmail({
     from,
     fromName,

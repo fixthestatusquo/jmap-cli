@@ -5,24 +5,34 @@ import "../lib/config.js";
 // ---------------------------------------------------------------------------
 // Token bootstrap
 //
-// Priority:
-//   1. JMAP_TOKEN is set → use as-is (Bearer JWT or Basic base64)
-//   2. JMAP_REFRESH_TOKEN is set → will be used by TokenManager on demand
-//   3. JMAP_USERNAME + JMAP_PASSWORD → Basic Auth (no OAuth2 attempt)
-//   4. Nothing → error (run `jmap login` or configure credentials)
+// Checks that credentials are available.  The actual authentication
+// (Basic Auth encoding, OAuth2, etc.) is handled by the JmapClient
+// constructor and TokenManager — this just validates that *something*
+// is configured so we can give a helpful error early.
+//
+// Recognised credential patterns (via env / config file):
+//   1. JMAP_TOKEN — Bearer or Basic token, used as-is
+//   2. JMAP_REFRESH_TOKEN — OAuth2 refresh, handled lazily by TokenManager
+//   3. JMAP_LOGIN + JMAP_PASSWORD [ + JMAP_IMPERSONATE ] — Basic Auth
+//   4. JMAP_USERNAME + JMAP_PASSWORD — legacy Basic Auth (pre-encodes for compat)
+//   5. Nothing → error
 // ---------------------------------------------------------------------------
 
 async function bootstrapToken() {
   if (process.env.JMAP_TOKEN) return;
-
-  // If we have a refresh token, let TokenManager handle it lazily
   if (process.env.JMAP_REFRESH_TOKEN) return;
 
-  const username = process.env.JMAP_USERNAME;
+  // New-style Basic Auth with optional impersonation
+  const login = process.env.JMAP_LOGIN;
   const password = process.env.JMAP_PASSWORD;
+  if (login && password) return;
 
+  // Legacy JMAP_USERNAME + JMAP_PASSWORD — pre-encode into JMAP_TOKEN
+  // so that getClientOptions() sees a token.  (The constructor also
+  // handles login+password directly, but this keeps the legacy env
+  // pattern working through the JMAP_TOKEN code path.)
+  const username = process.env.JMAP_USERNAME;
   if (username && password) {
-    // Basic Auth — encode immediately, no OAuth2 attempt
     const basic = Buffer.from(`${username}:${password}`).toString("base64");
     process.env.JMAP_TOKEN = `Basic ${basic}`;
     return;
@@ -31,7 +41,8 @@ async function bootstrapToken() {
   console.error(
     "Missing configuration. Options:\n" +
       "  - Set JMAP_TOKEN (Bearer or Basic token)\n" +
-      "  - Set JMAP_USERNAME + JMAP_PASSWORD (Basic Auth)\n" +
+      "  - Set JMAP_LOGIN + JMAP_PASSWORD (Basic Auth)\n" +
+      "  - Set JMAP_USERNAME + JMAP_PASSWORD (legacy Basic Auth)\n" +
       "  - Run `jmap login` (interactive OAuth2 device flow)",
   );
   process.exit(1);

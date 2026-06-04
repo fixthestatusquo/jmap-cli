@@ -43,62 +43,45 @@ export interface JmapKeywordOverrides {
 export interface JmapMailbox {
   id: string;
   name: string;
-  role: string | null;
-  parentId: string | null;
-  totalEmails: number;
-  unreadEmails: number;
-  totalThreads: number;
-  unreadThreads: number;
-  myRights: Record<string, boolean>;
-  sortOrder: number;
-  isSubscribed: boolean;
-  [key: string]: unknown;
+  role?: string;
+  parentId?: string;
+  sortOrder?: number;
+  isSubscribed?: boolean;
+  totalEmails?: number;
+  unreadEmails?: number;
+  totalThreads?: number;
+  unreadThreads?: number;
+  myRights?: Record<string, boolean>;
 }
 
 export interface JmapMessage {
   id: string;
   blobId: string;
-  subject: string;
-  from: JmapEmailAddress[];
-  to: JmapEmailAddress[];
+  subject?: string;
+  from?: JmapEmailAddress[];
+  to?: JmapEmailAddress[];
   cc?: JmapEmailAddress[];
   bcc?: JmapEmailAddress[];
-  replyTo?: JmapEmailAddress[];
-  keywords: JmapKeywordOverrides;
-  size: number;
-  receivedAt: string;
+  keywords?: Record<string, boolean>;
+  size?: number;
+  receivedAt?: string;
   sentAt?: string;
-  textBody?: JmapMessageBodyPart[] | string;
-  htmlBody?: JmapMessageBodyPart[] | string;
-  hasAttachment: boolean;
   preview?: string;
-  /** Raw email body text (resolved from blob) */
-  body?: string;
-  /** Header: X-Priority */
-  "header:X-Priority:asText"?: string;
-  /** Header: Importance */
-  "header:Importance:asText"?: string;
-  /** Header: Priority */
-  "header:Priority:asText"?: string;
-  /** Header: Auto-Submitted */
-  "header:Auto-Submitted:asText"?: string;
-  /** Message-ID header value */
+  textBody?: string;
+  htmlBody?: string;
+  hasAttachment?: boolean;
+  replyTo?: JmapEmailAddress[];
   messageID?: string;
   [key: string]: unknown;
 }
 
 export interface JmapSession {
   apiUrl: string;
+  downloadUrl: string;
+  uploadUrl: string;
   primaryAccounts: Record<string, string>;
-  uploadUrl?: string;
-  eventSourceUrl?: string;
-  downloadUrl?: string;
-  capabilities?: Record<string, unknown>;
-  state?: string;
-  /** Stalwart may include OAuth endpoints */
-  oAuthTokenEndpoint?: string;
-  authTokenEndpoint?: string;
-  [key: string]: unknown;
+  accounts: Record<string, unknown>;
+  capabilities: Record<string, unknown>;
 }
 
 export interface SendPrerequisites {
@@ -107,36 +90,26 @@ export interface SendPrerequisites {
   identityEmail: string;
 }
 
-export interface JmapIdentity {
-  id: string;
-  name: string;
-  email: string;
-  replyTo?: JmapEmailAddress;
-  bcc?: JmapEmailAddress[];
-  textSignature?: string;
-  htmlSignature?: string;
-  mayDelete?: boolean;
-  [key: string]: unknown;
-}
-
 // ----- Method-specific argument types -----
 
 export interface JmapClientOptions {
   /** JMAP base URL (e.g. https://api.fastmail.com) */
   baseUrl?: string;
-  /** Pre-existing OAuth2 access token (JWT) — also JMAP_TOKEN env var */
-  token?: string;
-  /** Pre-existing OAuth2 refresh token — also JMAP_REFRESH_TOKEN env var */
-  refreshToken?: string;
-  /** JMAP username (for password grant) — also JMAP_USERNAME env var */
-  username?: string;
-  /** JMAP password (for password grant) — also JMAP_PASSWORD env var */
+  /** JMAP login / username (for password grant or Basic Auth) */
+  login?: string;
+  /** JMAP password */
   password?: string;
-  /** OAuth2 client ID (default: "jmap-client") — also JMAP_CLIENT_ID env var */
+  /** Email address to impersonate (Stalwart Master User) */
+  impersonate?: string;
+  /** Pre-existing OAuth2 access token */
+  token?: string;
+  /** Pre-existing OAuth2 refresh token */
+  refreshToken?: string;
+  /** OAuth2 client ID (default: "jmap-client") */
   clientId?: string;
-  /** Explicit OAuth2 token endpoint — also JMAP_AUTH_TOKEN_ENDPOINT env var */
+  /** Explicit OAuth2 token endpoint */
   tokenEndpoint?: string;
-  /** Path to a .env config file (loaded automatically) */
+  /** Path to a .env config file (loads into process.env) */
   path?: string;
 }
 
@@ -145,12 +118,26 @@ export interface SendEmailOptions {
   from: string;
   /** From display name */
   fromName: string;
-  /** Recipient email address */
-  to: string;
+  /** Recipient email address(es) */
+  to: string | string[];
   /** Email subject line */
   subject: string;
   /** Plain-text email body */
   text: string;
+  /** CC recipient(s) */
+  cc?: string | string[];
+  /** BCC recipient(s) */
+  bcc?: string | string[];
+  /** HTML email body (for multipart/alternative when text is also provided) */
+  htmlBody?: string;
+  /** Reply-To address */
+  replyTo?: string;
+  /** In-Reply-To header value */
+  inReplyTo?: string;
+  /** References header values */
+  references?: string[];
+  /** Shorthand: sets inReplyTo + references + In-Reply-To header */
+  replyMessageId?: string;
   /** Optional attachment */
   attachment?: {
     /** Raw content (Buffer or string) */
@@ -171,11 +158,20 @@ export interface ListMessagesOptions {
   order?: "asc" | "desc";
   /** Keyword filters (e.g. { $seen: true, $flagged: false }) */
   keywords?: JmapKeywordOverrides;
+  /** ISO 8601 date — filter messages received after this time */
+  after?: string;
 }
 
 export interface GetMessagesOptions {
   /** Array of message IDs to fetch */
   messageIds: string[];
+}
+
+export interface GetMessageOptions {
+  /** JMAP message ID */
+  messageId?: string;
+  /** Look up by Message-ID header value (e.g. "<abc@example.com>") */
+  headerMessageId?: string;
 }
 
 export interface JmapFilterCondition {
@@ -249,10 +245,12 @@ export interface CreateMailboxOptions {
 // ----- Main JmapClient class -----
 
 export class JmapClient {
-  /** JMAP username */
-  username: string;
+  /** JMAP login / username */
+  login: string;
   /** JMAP password */
   password: string;
+  /** Email address being impersonated (Stalwart) */
+  impersonate: string;
   /** JMAP base URL */
   baseUrl: string;
   /** Full JMAP API URL (baseUrl + "/jmap") */
@@ -261,14 +259,12 @@ export class JmapClient {
   /**
    * Create a new JMAP client.
    *
-   * All options fall back to environment variables:
-   *   JMAP_TOKEN, JMAP_REFRESH_TOKEN, JMAP_USERNAME, JMAP_PASSWORD,
-   *   JMAP_BASE_URL, JMAP_CLIENT_ID, JMAP_AUTH_TOKEN_ENDPOINT
+   * All options must be passed explicitly. For CLI use, call
+   * `getClientOptions()` from config.js.
    *
-   * Token acquisition priority (handled by TokenManager):
-   *   1. Return cached access token if not expired
-   *   2. Refresh via refresh token
-   *   3. Password grant via username + password
+   * When `impersonate` is provided alongside `login` and `password`,
+   * the constructor composes a Stalwart-style composite username
+   * (`target%admin`) and uses Basic Auth directly, skipping OAuth2.
    */
   constructor(options?: JmapClientOptions);
 
@@ -306,13 +302,14 @@ export class JmapClient {
 
   /**
    * Send an email via JMAP (Email/set + EmailSubmission/set).
-   * Optionally includes an attachment.
+   * Supports multipart/alternative when both text and htmlBody are provided.
    */
   sendEmail(options: SendEmailOptions): Promise<Record<string, unknown>>;
 
   /**
    * List messages in a mailbox with optional sorting, ordering, keyword
-   * filters, and result limit.
+   * filters, after date filter, and result limit.
+   * Includes textBody, htmlBody, and bodyValues in the response.
    */
   listMessages(options: ListMessagesOptions): Promise<JmapMessage[]>;
 
@@ -323,9 +320,10 @@ export class JmapClient {
   getMessages(options: GetMessagesOptions): Promise<JmapMessage[]>;
 
   /**
-   * Fetch a single message by ID with resolved body content.
+   * Fetch a single message by JMAP ID or Message-ID header value.
+   * When headerMessageId is provided, resolves it via Email/query first.
    */
-  getMessage(options: { messageId: string }): Promise<JmapMessage | null>;
+  getMessage(options: GetMessageOptions): Promise<JmapMessage | null>;
 
   /**
    * Fetch all mailboxes for the account.
@@ -339,15 +337,15 @@ export class JmapClient {
   updateMessage(options: UpdateMessageOptions): Promise<Record<string, unknown>>;
 
   /**
-   * Search messages using arbitrary JMAP filter conditions.
+   * Search for messages using JMAP filter conditions.
    */
   searchMessages(options: SearchMessagesOptions): Promise<JmapMessage[]>;
 
   /**
-   * Listen for real-time message changes via WebSocket / EventSource
-   * (RFC 8887 subprotocol authentication).
+   * Listen for real-time state changes and message updates via WebSocket.
+   * Returns the WebSocket instance.
    */
-  listen(options?: ListenOptions): Promise<import("./socket.js").JmapSocketHandle>;
+  listen(options?: ListenOptions): Promise<WebSocket>;
 
   /**
    * Build the WebSocket URL for real-time updates from a JMAP session.
@@ -393,3 +391,12 @@ export {
   OAuthDiscoveryFailed,
   OAuthConfigurationError,
 } from "./errors.js";
+
+/**
+ * Build a JmapClient constructor options object from environment variables.
+ *
+ * Call this from CLI commands to translate process.env (already populated
+ * by config.js's side-effect config-file load) into the explicit options
+ * that the JmapClient constructor expects.
+ */
+export function getClientOptions(): JmapClientOptions;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import minimist from "minimist";
 import { JmapClient } from "../lib/jmap.js";
-import "../lib/config.js";
+import { getClientOptions } from "../lib/config.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -39,7 +39,7 @@ Options:
     process.exit(0);
   }
 
-  const jmapClient = new JmapClient();
+  const jmapClient = new JmapClient(getClientOptions());
   const message = await jmapClient.getMessage({ messageId });
 
   if (!message) {

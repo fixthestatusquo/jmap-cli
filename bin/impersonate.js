@@ -8,6 +8,9 @@
 //
 // The impersonator account must have the "impersonate" permission.
 // Password used is the impersonator's password.
+//
+// Sets JMAP_LOGIN, JMAP_PASSWORD, and JMAP_IMPERSONATE environment variables.
+// The JmapClient constructor composes the Stalwart login and uses Basic Auth.
 // ---------------------------------------------------------------------------
 
 import minimist from "minimist";
@@ -53,8 +56,8 @@ Examples:
   export JMAP_PASSWORD="admin-secret"
   jmap impersonate --for john@example.org
 
-On success, JMAP_TOKEN is set in the session and optionally written to
-the config file at ~/.config/jmap-cli/config.
+On success, JMAP_LOGIN, JMAP_PASSWORD, and JMAP_IMPERSONATE are set in the
+session and optionally written to the config file at ~/.config/jmap-cli/config.
 `;
 
 // ---------------------------------------------------------------------------
@@ -129,13 +132,12 @@ export async function main(argv) {
     process.exit(1);
   }
 
-  // Construct composite login: target%impersonator
-  const compositeUsername = `${targetEmail}%${impersonator}`;
-  const basic = Buffer.from(`${compositeUsername}:${password}`).toString(
-    "base64",
-  );
-
-  process.env.JMAP_TOKEN = `Basic ${basic}`;
+  // Set env vars that getClientOptions() will pick up.
+  // The JmapClient constructor handles composing the Stalwart login
+  // and setting up Basic Auth when impersonate is provided.
+  process.env.JMAP_LOGIN = impersonator;
+  process.env.JMAP_PASSWORD = password;
+  process.env.JMAP_IMPERSONATE = targetEmail;
 
   console.log(`\n✓ Impersonating ${targetEmail} (as ${impersonator})`);
 
@@ -167,9 +169,11 @@ export async function main(argv) {
 
     // Update with impersonation settings (preserve existing baseUrl)
     existing.JMAP_BASE_URL = existing.JMAP_BASE_URL || process.env.JMAP_BASE_URL;
-    existing.JMAP_TOKEN = process.env.JMAP_TOKEN;
-    existing.JMAP_ADMIN = impersonator;
-    // Remove any stale OAuth2 refresh token
+    existing.JMAP_LOGIN = impersonator;
+    existing.JMAP_PASSWORD = password;
+    existing.JMAP_IMPERSONATE = targetEmail;
+    // Remove any stale OAuth2 / Basic Auth token
+    delete existing.JMAP_TOKEN;
     delete existing.JMAP_REFRESH_TOKEN;
 
     const lines = Object.entries(existing).map(
