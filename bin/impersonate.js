@@ -65,7 +65,10 @@ session and optionally written to the config file at ~/.config/jmap-cli/config.
 // ---------------------------------------------------------------------------
 
 function question(prompt) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
   return new Promise((resolve) => {
     rl.question(prompt, (answer) => {
       rl.close();
@@ -114,7 +117,9 @@ export async function main(argv) {
   }
 
   // Get impersonator credentials
-  let impersonator = process.env.JMAP_ADMIN;
+  // Prefer JMAP_LOGIN (saved by a previous impersonate run), then JMAP_USERNAME, then JMAP_ADMIN
+  let impersonator = process.env.JMAP_LOGIN || process.env.JMAP_USERNAME || process.env.JMAP_ADMIN;
+  // Password only comes from JMAP_PASSWORD (the config file)
   let password = process.env.JMAP_PASSWORD;
 
   if (!impersonator) {
@@ -126,9 +131,7 @@ export async function main(argv) {
   }
 
   if (!impersonator || !password) {
-    console.error(
-      "Error: Impersonator email and password are required.",
-    );
+    console.error("Error: Impersonator email and password are required.");
     process.exit(1);
   }
 
@@ -145,9 +148,7 @@ export async function main(argv) {
   const configDir = path.join(os.homedir(), ".config", "jmap-cli");
   const configPath = path.join(configDir, "config");
 
-  const answer = await question(
-    `Save this session to ${configPath}? [Y/n] `,
-  );
+  const answer = await question(`Save this session to ${configPath}? [Y/n] `);
   const save = answer.toLowerCase() !== "n" && answer !== "no";
 
   if (save) {
@@ -159,7 +160,10 @@ export async function main(argv) {
         const idx = line.indexOf("=");
         if (idx > 0) {
           const key = line.slice(0, idx).trim();
-          const val = line.slice(idx + 1).replace(/^"|"$/g, "").trim();
+          const val = line
+            .slice(idx + 1)
+            .replace(/^"|"$/g, "")
+            .trim();
           if (key) existing[key] = val;
         }
       });
@@ -168,7 +172,8 @@ export async function main(argv) {
     }
 
     // Update with impersonation settings (preserve existing baseUrl)
-    existing.JMAP_BASE_URL = existing.JMAP_BASE_URL || process.env.JMAP_BASE_URL;
+    existing.JMAP_BASE_URL =
+      existing.JMAP_BASE_URL || process.env.JMAP_BASE_URL;
     existing.JMAP_LOGIN = impersonator;
     existing.JMAP_PASSWORD = password;
     existing.JMAP_IMPERSONATE = targetEmail;
