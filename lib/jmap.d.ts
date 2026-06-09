@@ -129,7 +129,7 @@ export interface SendEmailOptions {
   /** BCC recipient(s) */
   bcc?: string | string[];
   /** HTML email body (for multipart/alternative when text is also provided) */
-  htmlBody?: string;
+  html?: string;
   /** Reply-To address */
   replyTo?: string;
   /** In-Reply-To header value */
@@ -302,7 +302,7 @@ export class JmapClient {
 
   /**
    * Send an email via JMAP (Email/set + EmailSubmission/set).
-   * Supports multipart/alternative when both text and htmlBody are provided.
+   * Supports multipart/alternative when both text and html are provided.
    */
   sendEmail(options: SendEmailOptions): Promise<Record<string, unknown>>;
 
