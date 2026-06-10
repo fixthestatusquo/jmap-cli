@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import "../lib/config.js";
+import { loadEnvFile } from "../lib/env.js";
 
 // ---------------------------------------------------------------------------
 // Token bootstrap
@@ -101,6 +102,10 @@ const commands = {
     file: "./search.js",
     description: "Search for messages with various criteria",
   },
+  whoami: {
+    file: "./whoami.js",
+    description: "Show the current authenticated identity",
+  },
   help: { file: null, description: "Show this help message" },
 };
 
@@ -124,7 +129,7 @@ ${Object.entries(commands)
     }
 
     // Bootstrap token before running commands (except auth-related commands)
-    if (command !== "init" && command !== "login" && command !== "impersonate") {
+    if (command !== "init" && command !== "login" && command !== "impersonate" && command !== "whoami") {
       await bootstrapToken();
     }
 
